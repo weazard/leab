@@ -42,11 +42,16 @@ export function Diagnostics({ sessionId, extra }: { sessionId: string; extra: st
   const [filter, setFilter] = useState("");
   const [autoScroll, setAutoScroll] = useState(true);
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const logRef = useRef<HTMLDivElement>(null);
   const lastSeq = useRef(0);
 
   useEffect(() => {
-    setEvents([]);
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     lastSeq.current = 0;
     let es: EventSource | null = null;
     let poll: ReturnType<typeof setInterval> | null = null;
@@ -130,7 +135,7 @@ export function Diagnostics({ sessionId, extra }: { sessionId: string; extra: st
           <Stat label="downloaded" value={fmtBytes(st.bytesDownloaded)} sub={`${fmtBytes(st.bytesDecoded)} decoded`} />
           <Stat label="served" value={fmtBytes(st.bytesServed)} sub={`${st.activeStreams} active stream(s)`} />
           <Stat label="cache" value={fmtBytes(st.cacheBytes)} sub={`${st.cacheHits} hit / ${st.cacheMisses} miss`} />
-          <Stat label="uptime" value={`${Math.round((Date.now() - st.startedAt) / 1000)}s`} sub={`idle ${Math.round((Date.now() - st.lastActivity) / 1000)}s`} />
+          <Stat label="uptime" value={`${Math.round((now - st.startedAt) / 1000)}s`} sub={`idle ${Math.round((now - st.lastActivity) / 1000)}s`} />
           <Stat label="last error" value={st.lastError ? "yes" : "none"} sub={st.lastError?.slice(0, 40) ?? ""} bad={!!st.lastError} />
         </div>
       )}

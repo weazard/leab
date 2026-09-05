@@ -1,0 +1,42 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# local db data
+.data/
+
+# test fixtures generated files
+/scripts/fixtures/demo.mp4
+/scripts/fixtures/demo.jpg
+/scripts/fixtures/out/bundle.zip
+/scripts/fixtures/out/bundle-deflate.zip
+/scripts/fixtures/out/demo.release.part1.rar
+/scripts/fixtures/out/zipdeflate.nzb
+/scripts/fixtures/out/zipsrc/cover.jpg
