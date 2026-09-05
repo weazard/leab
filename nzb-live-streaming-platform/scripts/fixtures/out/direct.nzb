@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nzb PUBLIC "-//newzBin//DTD NZB 1.1//EN" "http://www.newzbin.com/DTD/nzb/nzb-1.1.dtd">
+<nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">
+<head><meta type="name">direct</meta></head>
+ <file poster="mock@example.com" date="1788606737" subject="[mock] &quot;demo.mp4&quot; yEnc (1/174)">
+  <groups><group>alt.binaries.test</group></groups>
+  <segments>
+   <segment bytes="516025" number="1">mtoa9p2q1$c3ce3070c804@mock.nntp</segment>
+   <segment bytes="515959" number="2">mtoa9p3f2$d096253b8360@mock.nntp</segment>
+   <segment bytes="515864" number="3">mtoa9p3x3$c6a3e3abfa38@mock.nntp</segment>
+   <segment bytes="515948" number="4">mtoa9p4d4$47935efb1259@mock.nntp</segment>
+   <segment bytes="515843" number="5">mtoa9p4r5$8d2f6bc467a6@mock.nntp</segment>
+   <segment bytes="516019" number="6">mtoa9p596$d09914df1043@mock.nntp</segment>
+   <segment bytes="516044" number="7">mtoa9p5t7$975220102186@mock.nntp</segment>
+   <segment bytes="515883" number="8">mtoa9p688$aea7d58e57c1@mock.nntp</segment>
+   <segment bytes="515858" number="9">mtoa9p6l9$cc5fc5d435b9@mock.nntp</segment>
+   <segment bytes="516020" number="10">mtoa9p6ya$a52ca5034e0c@mock.nntp</segment>
+   <segment bytes="515920" number="11">mtoa9p7cb$264bfb8990e9@mock.nntp</segment>
+   <segment bytes="515966" number="12">mtoa9p7pc$2a13ba22a6d2@mock.nntp</segment>
+   <segment bytes="516007" number="13">mtoa9p82d$b1fd3dfafce4@mock.nntp</segment>
+   <segment bytes="515854" number="14">mtoa9p8ge$5b069610d5ef@mock.nntp</segment>
+   <segment bytes="515974" number="15">mtoa9p8yf$633d7d74346f@mock.nntp</segment>
+   <segment bytes="516068" number="16">mtoa9p9cg$7ef82af128ec@mock.nntp</segment>
+   <segment bytes="515786" number="17">mtoa9p9ph$a13e03afed83@mock.nntp</segment>
+   <segment bytes="516016" number="18">mtoa9pa2i$fbf09f6f7685@mock.nntp</segment>
+   <segment bytes="515906" number="19">mtoa9pafj$63234fbcd6f7@mock.nntp</segment>
+   <segment bytes="515880" number="20">mtoa9patk$e717bba45648@mock.nntp</segment>
+   <segment bytes="516194" number="21">mtoa9pb5l$94148c71b76a@mock.nntp</segment>
+   <segment bytes="516198" number="22">mtoa9pbim$9a5178994ed9@mock.nntp</segment>
+   <segment bytes="516021" number="23">mtoa9pbwn$cb9072b00cb0@mock.nntp</segment>
+   <segment bytes="516081" number="24">mtoa9pcbo$27079b8a66fa@mock.nntp</segment>
+   <segment bytes="515864" number="25">mtoa9pcpp$0f8d95d56847@mock.nntp</segment>
+   <segment bytes="515865" number="26">mtoa9pd3q$cebdd1949070@mock.nntp</segment>
+   <segment bytes="515939" number="27">mtoa9pdkr$890350ba4eb4@mock.nntp</segment>
+   <segment bytes="515775" number="28">mtoa9pdys$2ebb789d6f26@mock.nntp</segment>
+   <segment bytes="515913" number="29">mtoa9pebt$b065caae72c8@mock.nntp</segment>
+   <segment bytes="515835" number="30">mtoa9peou$9e6249e6c8ce@mock.nntp</segment>
+   <segment bytes="516057" number="31">mtoa9pf3v$b40a0c82e94b@mock.nntp</segment>
+   <segment bytes="515977" number="32">mtoa9pfhw$277980d7d6d9@mock.nntp</segment>
+   <segment bytes="516057" number="33">mtoa9pfvx$2c9a626db3ce@mock.nntp</segment>
+   <segment bytes="515953" number="34">mtoa9pgiy$c55ee7b1e5b0@mock.nntp</segment>
+   <segment bytes="515838" number="35">mtoa9pgxz$12a5d2b9a146@mock.nntp</segment>
+   <segment bytes="515898" number="36">mtoa9phc10$442279e6483c@mock.nntp</segment>
+   <segment bytes="515934" number="37">mtoa9phr11$2b9a202fbae6@mock.nntp</segment>
+   <segment bytes="515852" number="38">mtoa9pi512$8f469308a4cd@mock.nntp</segment>
+   <segment bytes="515932" number="39">mtoa9pij13$d87094fb9814@mock.nntp</segment>
+   <segment bytes="515987" number="40">mtoa9pix14$e5a22359f6cb@mock.nntp</segment>
+   <segment bytes="515926" number="41">mtoa9pjb15$957ae95b8a24@mock.nntp</segment>
+   <segment bytes="515902" number="42">mtoa9pjp16$3a672ded7878@mock.nntp</segment>
+   <segment bytes="515840" number="43">mtoa9pk317$b970e9709548@mock.nntp</segment>
+   <segment bytes="516035" number="44">mtoa9pko18$1689b0bcf3cb@mock.nntp</segment>
+   <segment bytes="516007" number="45">mtoa9pl319$fd4c24a08d85@mock.nntp</segment>
+   <segment bytes="515943" number="46">mtoa9plh1a$1f64bd2f7606@mock.nntp</segment>
+   <segment bytes="515895" number="47">mtoa9plv1b$0283acb8b8de@mock.nntp</segment>
+   <segment bytes="516006" number="48">mtoa9pma1c$ab045afc6a28@mock.nntp</segment>
+   <segment bytes="516008" number="49">mtoa9pmp1d$1cfb5326add2@mock.nntp</segment>
+   <segment bytes="516018" number="50">mtoa9pn21e$03d5313637ce@mock.nntp</segment>
+   <segment bytes="515890" number="51">mtoa9png1f$0c702586f6d0@mock.nntp</segment>
+   <segment bytes="515950" number="52">mtoa9pnu1g$851c075165d4@mock.nntp</segment>
+   <segment bytes="515795" number="53">mtoa9po91h$d262bb0bf6d4@mock.nntp</segment>
+   <segment bytes="516058" number="54">mtoa9poo1i$41f8f68a0fbd@mock.nntp</segment>
+   <segment bytes="516025" number="55">mtoa9ppa1j$9877616dbee4@mock.nntp</segment>
+   <segment bytes="515955" number="56">mtoa9ppp1k$37aa23ecc17f@mock.nntp</segment>
+   <segment bytes="515854" number="57">mtoa9pq41l$8a7682698cd4@mock.nntp</segment>
+   <segment bytes="515966" number="58">mtoa9pqi1m$5f942ca8e895@mock.nntp</segment>
+   <segment bytes="515962" number="59">mtoa9pqw1n$08033a665429@mock.nntp</segment>
+   <segment bytes="516035" number="60">mtoa9prc1o$7f8ae9e07ea4@mock.nntp</segment>
+   <segment bytes="516069" number="61">mtoa9prr1p$7796f2cb22c6@mock.nntp</segment>
+   <segment bytes="516068" number="62">mtoa9ps61q$1fd9ad2f64cc@mock.nntp</segment>
+   <segment bytes="515890" number="63">mtoa9psq1r$ea591c677bc0@mock.nntp</segment>
+   <segment bytes="516049" number="64">mtoa9pt51s$c26d09cd168b@mock.nntp</segment>
+   <segment bytes="515819" number="65">mtoa9ptk1t$e9a15a7d8bae@mock.nntp</segment>
+   <segment bytes="515949" number="66">mtoa9pty1u$3c495cbeb7fd@mock.nntp</segment>
+   <segment bytes="515876" number="67">mtoa9pue1v$c10e5ce2b551@mock.nntp</segment>
+   <segment bytes="516062" number="68">mtoa9puv1w$c824fb1e8651@mock.nntp</segment>
+   <segment bytes="516069" number="69">mtoa9pv91x$05ae1c8c3b5b@mock.nntp</segment>
+   <segment bytes="515927" number="70">mtoa9pvn1y$0145c32fbc1b@mock.nntp</segment>
+   <segment bytes="516010" number="71">mtoa9pw31z$cac2e39503f7@mock.nntp</segment>
+   <segment bytes="515972" number="72">mtoa9pwi20$ad2cff5a7841@mock.nntp</segment>
+   <segment bytes="515890" number="73">mtoa9px621$c1ad87019208@mock.nntp</segment>
+   <segment bytes="516127" number="74">mtoa9pxm22$9dcf41d9973a@mock.nntp</segment>
+   <segment bytes="515953" number="75">mtoa9py123$e85a12156971@mock.nntp</segment>
+   <segment bytes="515933" number="76">mtoa9pyg24$c4462bf2601f@mock.nntp</segment>
+   <segment bytes="515906" number="77">mtoa9pyx25$8d90ea6ca9b6@mock.nntp</segment>
+   <segment bytes="515943" number="78">mtoa9pzb26$1bffaaeeeb9f@mock.nntp</segment>
+   <segment bytes="515984" number="79">mtoa9pzo27$e8cfd52c19d5@mock.nntp</segment>
+   <segment bytes="515832" number="80">mtoa9q0228$eb03cf0bd3d2@mock.nntp</segment>
+   <segment bytes="516008" number="81">mtoa9q0f29$f4c50e386284@mock.nntp</segment>
+   <segment bytes="516052" number="82">mtoa9q0t2a$0a4f8c639c7a@mock.nntp</segment>
+   <segment bytes="515927" number="83">mtoa9q152b$359eb73f5388@mock.nntp</segment>
+   <segment bytes="515979" number="84">mtoa9q1o2c$2ffa02abd6f8@mock.nntp</segment>
+   <segment bytes="515938" number="85">mtoa9q222d$600db390b8b0@mock.nntp</segment>
+   <segment bytes="515808" number="86">mtoa9q2f2e$610c8d4b2877@mock.nntp</segment>
+   <segment bytes="516058" number="87">mtoa9q2s2f$0d1411734c78@mock.nntp</segment>
+   <segment bytes="515970" number="88">mtoa9q372g$c303b1d5a67c@mock.nntp</segment>
+   <segment bytes="516032" number="89">mtoa9q3m2h$09f6d3d39f3c@mock.nntp</segment>
+   <segment bytes="515985" number="90">mtoa9q412i$177aebb294ff@mock.nntp</segment>
+   <segment bytes="516122" number="91">mtoa9q4f2j$92a2ef260a2e@mock.nntp</segment>
+   <segment bytes="515878" number="92">mtoa9q4y2k$493ec40a4927@mock.nntp</segment>
+   <segment bytes="515962" number="93">mtoa9q5c2l$a2706411900f@mock.nntp</segment>
+   <segment bytes="515822" number="94">mtoa9q5q2m$293ae4417f8f@mock.nntp</segment>
+   <segment bytes="515957" number="95">mtoa9q632n$f1e71ca016ed@mock.nntp</segment>
+   <segment bytes="516055" number="96">mtoa9q6h2o$8b08c62754ab@mock.nntp</segment>
+   <segment bytes="516097" number="97">mtoa9q6w2p$637d37293a46@mock.nntp</segment>
+   <segment bytes="515970" number="98">mtoa9q792q$0c2b57a218c1@mock.nntp</segment>
+   <segment bytes="515964" number="99">mtoa9q7m2r$7fe495907f0c@mock.nntp</segment>
+   <segment bytes="516087" number="100">mtoa9q7z2s$c361c601d91d@mock.nntp</segment>
+   <segment bytes="515927" number="101">mtoa9q8d2t$6f7cf3a1eaec@mock.nntp</segment>
+   <segment bytes="515831" number="102">mtoa9q8w2u$42d1032a59d4@mock.nntp</segment>
+   <segment bytes="516024" number="103">mtoa9q9a2v$33166ba511cb@mock.nntp</segment>
+   <segment bytes="516015" number="104">mtoa9q9o2w$162be4128cb1@mock.nntp</segment>
+   <segment bytes="516058" number="105">mtoa9qa22x$5128e4d553f1@mock.nntp</segment>
+   <segment bytes="515862" number="106">mtoa9qag2y$b9d14a7c2936@mock.nntp</segment>
+   <segment bytes="515827" number="107">mtoa9qat2z$0d28cc342f4b@mock.nntp</segment>
+   <segment bytes="516001" number="108">mtoa9qb630$42538cbc67e1@mock.nntp</segment>
+   <segment bytes="515849" number="109">mtoa9qbk31$58c7706a807f@mock.nntp</segment>
+   <segment bytes="515959" number="110">mtoa9qbx32$8e12543aa8a6@mock.nntp</segment>
+   <segment bytes="515985" number="111">mtoa9qcc33$588bea816a24@mock.nntp</segment>
+   <segment bytes="516048" number="112">mtoa9qcp34$f6a7cc1fbae2@mock.nntp</segment>
+   <segment bytes="516073" number="113">mtoa9qd735$3507c0ec2bf1@mock.nntp</segment>
+   <segment bytes="515872" number="114">mtoa9qdl36$d0450f847f5d@mock.nntp</segment>
+   <segment bytes="515890" number="115">mtoa9qdz37$de8e312e222b@mock.nntp</segment>
+   <segment bytes="515884" number="116">mtoa9qed38$a0cd08744b5b@mock.nntp</segment>
+   <segment bytes="515981" number="117">mtoa9qeq39$05af7e93191b@mock.nntp</segment>
+   <segment bytes="516082" number="118">mtoa9qf63a$89b3bdf1f93a@mock.nntp</segment>
+   <segment bytes="516041" number="119">mtoa9qfj3b$5faff59c9c49@mock.nntp</segment>
+   <segment bytes="516001" number="120">mtoa9qfw3c$054a3de079ce@mock.nntp</segment>
+   <segment bytes="516042" number="121">mtoa9qge3d$d4eedb014621@mock.nntp</segment>
+   <segment bytes="515989" number="122">mtoa9qgs3e$e028911a93de@mock.nntp</segment>
+   <segment bytes="515921" number="123">mtoa9qh53f$32b58daa7d13@mock.nntp</segment>
+   <segment bytes="515945" number="124">mtoa9qhj3g$870b8b37e720@mock.nntp</segment>
+   <segment bytes="515781" number="125">mtoa9qhw3h$657ffba41eee@mock.nntp</segment>
+   <segment bytes="515960" number="126">mtoa9qia3i$81df0294a9fc@mock.nntp</segment>
+   <segment bytes="515920" number="127">mtoa9qin3j$5327600d5c23@mock.nntp</segment>
+   <segment bytes="515938" number="128">mtoa9qj03k$cd3d2cb53659@mock.nntp</segment>
+   <segment bytes="515807" number="129">mtoa9qjd3l$67137af215ad@mock.nntp</segment>
+   <segment bytes="515799" number="130">mtoa9qjr3m$ae4995cce79f@mock.nntp</segment>
+   <segment bytes="516000" number="131">mtoa9qk93n$8bab8262a712@mock.nntp</segment>
+   <segment bytes="516006" number="132">mtoa9qkp3o$8d013cf04dd3@mock.nntp</segment>
+   <segment bytes="516115" number="133">mtoa9ql33p$634692018034@mock.nntp</segment>
+   <segment bytes="515937" number="134">mtoa9qlh3q$bdc83ab5df42@mock.nntp</segment>
+   <segment bytes="516053" number="135">mtoa9qlv3r$4e180d8722bf@mock.nntp</segment>
+   <segment bytes="515851" number="136">mtoa9qm93s$e10aa446f909@mock.nntp</segment>
+   <segment bytes="515756" number="137">mtoa9qmn3t$b699c34e1600@mock.nntp</segment>
+   <segment bytes="515839" number="138">mtoa9qn13u$00c47f965da1@mock.nntp</segment>
+   <segment bytes="515812" number="139">mtoa9qnh3v$1e892032b062@mock.nntp</segment>
+   <segment bytes="515909" number="140">mtoa9qnv3w$ccd85af6701c@mock.nntp</segment>
+   <segment bytes="515917" number="141">mtoa9qo93x$091388f1ff14@mock.nntp</segment>
+   <segment bytes="515891" number="142">mtoa9qoo3y$93487e339a32@mock.nntp</segment>
+   <segment bytes="516049" number="143">mtoa9qp33z$93ad3393ee69@mock.nntp</segment>
+   <segment bytes="515998" number="144">mtoa9qph40$215680ef02fd@mock.nntp</segment>
+   <segment bytes="515925" number="145">mtoa9qpv41$4c25f1f6f4fb@mock.nntp</segment>
+   <segment bytes="516084" number="146">mtoa9qqe42$cfb0c2d32f9c@mock.nntp</segment>
+   <segment bytes="515988" number="147">mtoa9qqu43$4d30fe66e55e@mock.nntp</segment>
+   <segment bytes="516061" number="148">mtoa9qr844$3b664c4837f6@mock.nntp</segment>
+   <segment bytes="515784" number="149">mtoa9qrn45$8d8c0bc6c1bd@mock.nntp</segment>
+   <segment bytes="515833" number="150">mtoa9qs446$01b6c64d8955@mock.nntp</segment>
+   <segment bytes="515953" number="151">mtoa9qsk47$e7ab351f46e1@mock.nntp</segment>
+   <segment bytes="516004" number="152">mtoa9qt148$a7ac0ae293a6@mock.nntp</segment>
+   <segment bytes="515845" number="153">mtoa9qtg49$2047054b976c@mock.nntp</segment>
+   <segment bytes="516014" number="154">mtoa9qtw4a$0d8ecbad5bbd@mock.nntp</segment>
+   <segment bytes="516089" number="155">mtoa9quc4b$bbb0e76354ca@mock.nntp</segment>
+   <segment bytes="515792" number="156">mtoa9quz4c$2d810ae653d4@mock.nntp</segment>
+   <segment bytes="515945" number="157">mtoa9qvg4d$a69f7f4e8fc2@mock.nntp</segment>
+   <segment bytes="515943" number="158">mtoa9qvw4e$e2911072bf42@mock.nntp</segment>
+   <segment bytes="515835" number="159">mtoa9qwb4f$61defd6e639f@mock.nntp</segment>
+   <segment bytes="516073" number="160">mtoa9qws4g$2473e66e10ff@mock.nntp</segment>
+   <segment bytes="515945" number="161">mtoa9qx94h$635d3a5ce526@mock.nntp</segment>
+   <segment bytes="515824" number="162">mtoa9qxo4i$c6a1dd171890@mock.nntp</segment>
+   <segment bytes="515901" number="163">mtoa9qy34j$2e849d0ad6f5@mock.nntp</segment>
+   <segment bytes="515912" number="164">mtoa9qyh4k$a0ce735d5ad1@mock.nntp</segment>
+   <segment bytes="515918" number="165">mtoa9qyw4l$f81aff209423@mock.nntp</segment>
+   <segment bytes="516061" number="166">mtoa9qz94m$63af75d52fe8@mock.nntp</segment>
+   <segment bytes="515911" number="167">mtoa9qzt4n$824837f20a2a@mock.nntp</segment>
+   <segment bytes="515998" number="168">mtoa9r084o$88017fc44c7b@mock.nntp</segment>
+   <segment bytes="515882" number="169">mtoa9r0p4p$041b555a4ad8@mock.nntp</segment>
+   <segment bytes="515962" number="170">mtoa9r144q$1ccbb6d53780@mock.nntp</segment>
+   <segment bytes="515961" number="171">mtoa9r1l4r$67b0679cc15d@mock.nntp</segment>
+   <segment bytes="516027" number="172">mtoa9r224s$71017852301a@mock.nntp</segment>
+   <segment bytes="515863" number="173">mtoa9r2h4t$9c11845f0436@mock.nntp</segment>
+   <segment bytes="129712" number="174">mtoa9r2v4u$b0cf6ebc0b2e@mock.nntp</segment>
+  </segments>
+ </file>
+ <file poster="mock@example.com" date="1788606737" subject="[mock] &quot;demo.jpg&quot; yEnc (1/1)">
+  <groups><group>alt.binaries.test</group></groups>
+  <segments>
+   <segment bytes="120348" number="1">mtoa9r2z4v$16f2112058e6@mock.nntp</segment>
+  </segments>
+ </file>
+ <file poster="mock@example.com" date="1788606737" subject="[mock] &quot;readme.nfo&quot; yEnc (1/1)">
+  <groups><group>alt.binaries.test</group></groups>
+  <segments>
+   <segment bytes="238" number="1">mtoa9r344w$055ab44d31ee@mock.nntp</segment>
+  </segments>
+ </file>
+ <file poster="mock@example.com" date="1788606737" subject="[mock] &quot;demo.en.srt&quot; yEnc (1/1)">
+  <groups><group>alt.binaries.test</group></groups>
+  <segments>
+   <segment bytes="269" number="1">mtoa9r344x$9bb2e4ed62e7@mock.nntp</segment>
+  </segments>
+ </file>
+</nzb>
