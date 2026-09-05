@@ -6,6 +6,7 @@ import { getSession } from "@/lib/usenet/session";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 type Ctx = { params: Promise<{ id: string; itemId: string }> };
 

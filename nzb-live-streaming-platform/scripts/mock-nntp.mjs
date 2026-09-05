@@ -206,6 +206,10 @@ try {
   fs.rmSync(zipPath, { force: true });
   execFileSync("zip", ["-0", "-j", "-q", zipPath, path.join(zipTmp, "cover.jpg"), path.join(zipTmp, "readme.nfo")], { timeout: 20000 });
   nzb("zip", [post(fs.readFileSync(zipPath), { yencName: "bundle.zip" })]);
+  const zipDeflate = path.join(out, "bundle-deflate.zip");
+  fs.rmSync(zipDeflate, { force: true });
+  execFileSync("zip", ["-9", "-j", "-q", zipDeflate, path.join(zipTmp, "cover.jpg"), path.join(zipTmp, "readme.nfo")], { timeout: 20000 });
+  nzb("zipdeflate", [post(fs.readFileSync(zipDeflate), { yencName: "bundle-deflate.zip" })]);
 } catch (e) {
   console.log("[mock] zip unavailable, skipping zip fixture:", e.message);
 }

@@ -16,6 +16,7 @@ import { parseRarSet, rarVolumeKey, type ArchiveChunk } from "./rar";
 import { parsePar2, parseZip, type Par2Info } from "./zip_par2";
 import { detect, type MediaKind } from "./detect";
 import { segmentCache } from "./cache";
+import { InflatingReader, maxInflateBytes } from "./inflate";
 
 export interface MediaItem {
   id: string;
@@ -26,6 +27,10 @@ export interface MediaItem {
   mime: string;
   browserMime: string;
   playable: boolean;
+  /** compressed RAR/ZIP — server inflates (WASM / DecompressionStream) then serves ranges */
+  needsDecompress?: boolean;
+  packedSize?: number;
+  method?: string;
   container: "direct" | "rar" | "zip";
   containerName?: string;
   reason?: string;
@@ -71,9 +76,9 @@ export class StreamSession {
     this.pool = new NntpPool(providerCfg, this.diag);
     this.files = nzb.files.map((f) => new NzbVirtualFile(id, f, this.pool, this.diag));
     if (cachedItems) {
-      this.items = cachedItems;
+      this.items = cachedItems.map(hydrateCompressed);
       // restore resolved names for display
-      for (const it of cachedItems) if (it.src.type === "direct") this.files[it.src.file].resolvedName = it.name;
+      for (const it of this.items) if (it.src.type === "direct") this.files[it.src.file].resolvedName = it.name;
     }
     this.diag.info("session", `session ${id} ready: "${title}" — ${nzb.files.length} files, provider ${providerCfg.name} (${providerCfg.host}:${providerCfg.port} tls=${providerCfg.ssl}, ${providerCfg.connections} conns)`, {
       files: nzb.files.length,
@@ -262,8 +267,11 @@ export class StreamSession {
         const info = await parseRarSet(volumes, this.diag, Math.min(conc, 8));
         for (const e of info.entries) {
           const d = detect(e.name, null);
-          const streamable = e.stored && !e.encrypted && !info.encryptedHeaders;
           const mapped = e.chunks.reduce((n, c) => n + c.length, 0);
+          const encrypted = e.encrypted || info.encryptedHeaders;
+          const needsDecompress = !e.stored && !encrypted;
+          const tooBig = needsDecompress && e.size > maxInflateBytes();
+          const streamable = !encrypted && !tooBig && (e.stored || needsDecompress);
           items.push({
             id: "",
             name: e.name.replace(/^.*[\\/]/, ""),
@@ -273,21 +281,29 @@ export class StreamSession {
             mime: d.mime,
             browserMime: d.browserMime,
             playable: streamable && d.playable,
+            needsDecompress: needsDecompress && !tooBig,
+            packedSize: mapped,
+            method: e.method,
             container: "rar",
             containerName: `${names[0]} (+${volumes.length - 1} volumes, ${info.format})`,
             crc: e.crc,
-            reason: !streamable
-              ? e.encrypted || info.encryptedHeaders
-                ? "Encrypted RAR — password-protected archives cannot be streamed"
-                : `RAR entry is ${e.method}; only stored (uncompressed) entries can be streamed`
-              : mapped < e.size
-                ? `Only ${Math.round((mapped / e.size) * 100)}% mapped — missing volumes; playback will stop early`
-                : d.playable
-                  ? undefined
-                  : `Browser cannot play .${d.ext} natively — download or open the stream URL in VLC`,
+            reason: encrypted
+              ? "Encrypted RAR — password-protected archives cannot be streamed"
+              : tooBig
+                ? `RAR entry is ${e.method} and unpacks to ${(e.size / 1024 / 1024).toFixed(0)} MB — raise MAX_INFLATE_MB (default 512) or use a stored (m0) release`
+                : needsDecompress
+                  ? d.playable
+                    ? `Compressed RAR (${e.method}) — inflated on the fly via 7-Zip WASM`
+                    : `Browser cannot play .${d.ext} natively — download or open the stream URL in VLC`
+                  : mapped < e.size
+                    ? `Only ${Math.round((mapped / e.size) * 100)}% mapped — missing volumes; playback will stop early`
+                    : d.playable
+                      ? undefined
+                      : `Browser cannot play .${d.ext} natively — download or open the stream URL in VLC`,
             src: { type: "chunks", files: volumes.map((v) => v.file.index), chunks: e.chunks },
           });
         }
+
         if (!info.entries.length) {
           items.push({
             id: "", name: names[0], size: volumes.reduce((n, v) => n + v.size, 0), kind: "archive", ext: "rar", mime: "application/vnd.rar", browserMime: "application/vnd.rar",
@@ -306,7 +322,9 @@ export class StreamSession {
         const info = await parseZip(z, this.diag);
         for (const e of info.entries) {
           const d = detect(e.name, null);
-          const streamable = e.stored && !e.encrypted;
+          const needsDecompress = !e.stored && !e.encrypted;
+          const tooBig = needsDecompress && e.size > maxInflateBytes();
+          const streamable = !e.encrypted && !tooBig && (e.stored || needsDecompress);
           items.push({
             id: "",
             name: e.name.replace(/^.*[\\/]/, ""),
@@ -316,10 +334,23 @@ export class StreamSession {
             mime: d.mime,
             browserMime: d.browserMime,
             playable: streamable && d.playable,
+            needsDecompress: needsDecompress && !tooBig,
+            packedSize: e.packedSize,
+            method: e.method,
             container: "zip",
             containerName: z.resolvedName,
             crc: e.crc,
-            reason: !streamable ? (e.encrypted ? "Encrypted ZIP entry" : `ZIP entry is ${e.method}; only stored entries can be streamed`) : d.playable ? undefined : `Browser cannot play .${d.ext} natively`,
+            reason: e.encrypted
+              ? "Encrypted ZIP entry"
+              : tooBig
+                ? `ZIP entry is ${e.method} and unpacks to ${(e.size / 1024 / 1024).toFixed(0)} MB — raise MAX_INFLATE_MB`
+                : needsDecompress
+                  ? d.playable
+                    ? `Compressed ZIP (${e.method}) — inflated on the fly`
+                    : `Browser cannot play .${d.ext} natively`
+                  : d.playable
+                    ? undefined
+                    : `Browser cannot play .${d.ext} natively`,
             src: { type: "chunks", files: [z.file.index], chunks: e.chunks },
           });
         }
@@ -348,7 +379,19 @@ export class StreamSession {
     if (item.src.type === "direct") r = this.files[item.src.file];
     else {
       const vols = item.src.files.map((i) => this.files[i]);
-      r = new ChunkedReader(item.name, item.size, vols, item.src.chunks);
+      const packedSize = item.packedSize ?? item.src.chunks.reduce((n, c) => n + c.length, 0);
+      const packed = new ChunkedReader(item.name, item.needsDecompress ? packedSize : item.size, vols, item.src.chunks);
+      const compressed = item.needsDecompress || (!!item.method && item.method !== "store" && !/^store$/i.test(item.method));
+      if (compressed) {
+        r = new InflatingReader(item.name, item.size, packed, {
+          method: item.method ?? "compressed",
+          format: item.container === "zip" ? "zip" : item.containerName?.includes("rar5") ? "rar5" : "rar4",
+          volumes: vols,
+          entryName: item.name,
+          packedSize,
+          diag: this.diag,
+        });
+      } else r = packed;
     }
     this.readers.set(item.id, r);
     return r;
@@ -359,6 +402,23 @@ export class StreamSession {
     await this.pool.close();
     segmentCache.clearPrefix(`${this.id}:`);
   }
+}
+
+/** Re-enable playback on items analysed before compressed inflate existed. */
+function hydrateCompressed(it: MediaItem): MediaItem {
+  const m = /compressed\(([^)]+)\)/.exec(it.reason ?? "") || /Compressed (?:RAR|ZIP) \(([^)]+)\)/.exec(it.reason ?? "");
+  if (!it.needsDecompress && m && it.src.type === "chunks") {
+    const tooBig = it.size > maxInflateBytes();
+    it.method ||= m[0].startsWith("compressed") ? m[0] : `compressed(${m[1]})`;
+    it.needsDecompress = !tooBig;
+    it.playable = !tooBig && (it.kind === "video" || it.kind === "audio" || it.kind === "image" || it.kind === "pdf");
+    it.reason = tooBig
+      ? `${it.method} unpacks to ${(it.size / 1024 / 1024).toFixed(0)} MB — raise MAX_INFLATE_MB`
+      : it.playable
+        ? `Compressed ${it.container} (${it.method}) — inflated on the fly`
+        : it.reason;
+  }
+  return it;
 }
 
 async function md5hex(data: Uint8Array): Promise<string | null> {

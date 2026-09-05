@@ -1,5 +1,5 @@
 /**
- * ZIP (stored entries → streamable) and PAR2 (recover real filenames of
+ * ZIP (stored + deflate entries → streamable) and PAR2 (recover real filenames of
  * obfuscated posts + expose integrity metadata) parsers.
  */
 import type { RandomReader } from "./virtualfile";
@@ -93,9 +93,9 @@ export async function parseZip(r: RandomReader, diag: Diag): Promise<ArchiveInfo
     }
     p += 46 + nameLen + extraLen + commentLen;
   }
-  // resolve local header sizes for stored entries (30 + n + m)
+  // resolve local header sizes (30 + n + m) so chunks point at the payload
+  // (stored bytes or the deflate stream), not the local header itself.
   for (const e of entries) {
-    if (!e.stored) continue;
     const lh = await r.read(e.chunks[0].offset, 30);
     const lv = dv(lh);
     if (lv.getUint32(0, true) !== 0x04034b50) {
