@@ -163,8 +163,8 @@ export class StreamSession {
     const heads = new Map<number, Uint8Array>();
     for (const f of this.files) {
       if (failed.has(f.file.index)) continue;
-      const seg = await f.segment(0);
-      heads.set(f.file.index, seg.data.subarray(0, 512));
+      const head = await f.peek(0, 512);
+      heads.set(f.file.index, head);
     }
 
     // 3. PAR2 → real names
@@ -193,7 +193,7 @@ export class StreamSession {
         if (bySize.length === 1) parName = bySize[0].name;
         else if (bySize.length > 1) {
           // several candidates with the same size: PAR2 stores the MD5 of the first 16KB
-          const first = (await f.segment(0)).data.subarray(0, 16384);
+          const first = await f.peek(0, 16384);
           const h = await md5hex(first);
           parName = h ? bySize.find((p) => p.md5_16k === h)?.name : undefined;
           if (parName) this.diag.debug("analyze", `file#${f.file.index} matched PAR2 entry "${parName}" by md5-16k`);

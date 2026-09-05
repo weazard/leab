@@ -1,8 +1,9 @@
 name: real e2e (live provider)
 
 # Runs the app against a real NNTP provider + newznab indexer on a GitHub
-# runner (full internet, unlike the dev sandbox) and pushes the probe report
-# back to the `ci/results` branch so it can be read without the Actions API.
+# runner (full internet, unlike the dev sandbox), then drives the player in a
+# real Chrome to measure what playback actually feels like. The JSON reports are
+# pushed to the `ci/results` branch so they can be read without the Actions API.
 #
 # Credentials below are TEMPORARY test accounts. They can be overridden at any
 # time by adding repository secrets NEWZNAB_API_KEY / NNTP_USER / NNTP_PASS.
@@ -20,9 +21,7 @@ on:
     branches: [arena/01a07384-leab]
     paths:
       - .github/workflows/real-e2e.yml
-      - scripts/ci/real-e2e.mjs
-      - nzb-live-streaming-platform/scripts/ci/real-e2e.mjs
-      - scripts/ci/TRIGGER
+      - nzb-live-streaming-platform/scripts/ci/**
 
 concurrency:
   group: real-e2e
@@ -34,7 +33,7 @@ permissions:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       NEWZNAB_URL: https://api.nzb.life
       NEWZNAB_API_KEY: ${{ secrets.NEWZNAB_API_KEY || '4672408959beb08e7549291b12882bce' }}
@@ -44,13 +43,14 @@ jobs:
       PROVIDER_USER: ${{ secrets.NNTP_USER || 'yspery@gmail.com' }}
       PROVIDER_PASS: ${{ secrets.NNTP_PASS || 'DadeDa123!' }}
       PROVIDER_CONNS: "10"
-      SEGMENT_CACHE_MB: "256"
+      SEGMENT_CACHE_MB: "512"
       MAX_INFLATE_MB: "512"
       NNTP_TIMEOUT_MS: "30000"
       SEARCH_QUERY: ${{ github.event.inputs.query || 'Silo S01E01' }}
       PICK_MAX_BYTES: ${{ github.event.inputs.pick_max_bytes || '4000000000' }}
       DO_FFPROBE: "1"
       REPORT_OUT: ci-report/report.json
+      APP_URL: http://127.0.0.1:3000
     steps:
       - uses: actions/checkout@v4
 
@@ -86,27 +86,54 @@ jobs:
         run: node scripts/ci/real-e2e.mjs http://127.0.0.1:3000 2>&1 | tee /tmp/probe.log
         continue-on-error: true
 
-      - name: probe summary
-        if: always()
+      - name: install browser for the playback test
+        working-directory: nzb-live-streaming-platform
         run: |
-          echo "## real e2e" >> $GITHUB_STEP_SUMMARY
-          [ -f nzb-live-streaming-platform/ci-report/report.json ] \
-            && python3 -c "import json,sys; r=json.load(open('nzb-live-streaming-platform/ci-report/report.json')); \
-print('checks:', r.get('summary')); print(); [print(('PASS' if c['pass'] else 'FAIL'), c['name'], '-', c['detail']) for c in r.get('checks',[])]; \
-print(); [print('FINDING', f['sev'], f['msg']) for f in r.get('findings',[])]; print(); print('items:', json.dumps(r.get('items',[])[:8], indent=1)[:3000]); \
-print(); print('codecs:', json.dumps(r.get('codecs',{}))[:1500]); print('playability:', json.dumps(r.get('playability',{}), indent=1)[:2000])" >> $GITHUB_STEP_SUMMARY \
-            || echo "no report" >> $GITHUB_STEP_SUMMARY
+          npm i --no-save --no-audit --no-fund playwright@1.49.1 || true
+          npx playwright install chrome || npx playwright install --with-deps chromium || echo "browser install failed"
+        continue-on-error: true
+
+      - name: playback test in a real browser
+        id: playback
+        working-directory: nzb-live-streaming-platform
+        env:
+          REPORT_OUT: ci-report/playback.json
+        run: node scripts/ci/browser-playback.mjs http://127.0.0.1:3000 2>&1 | tee /tmp/playback.log
+        continue-on-error: true
+
+      - name: summaries
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: |
+          echo "### probe" >> $GITHUB_STEP_SUMMARY
+          node scripts/ci/summarize.mjs ci-report/report.json >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### browser playback" >> $GITHUB_STEP_SUMMARY
+          if [ -f ci-report/playback.json ]; then
+            node -e '
+              const r = JSON.parse(require("fs").readFileSync("ci-report/playback.json","utf8"));
+              const rows = (r.checks??[]).map(c=>`| ${c.name} | ${c.pass?"✅":"❌"} | ${String(c.detail).slice(0,140)} |`).join("\n");
+              console.log(`browser: ${r.browser ?? "-"}\n\n| check | result | detail |\n|---|---|---|\n${rows}`);
+              for (const f of r.findings??[]) console.log(`- ${f}`);
+              if (r.state) console.log(`\nvideo: ${r.state.videoWidth}x${r.state.videoHeight} duration=${r.state.duration} frames=${r.state.decodedFrames} audioBytes=${r.state.audioDecodedBytes} err=${JSON.stringify(r.state.error)}`);
+            ' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "no playback report" >> $GITHUB_STEP_SUMMARY
+          fi
+        continue-on-error: true
 
       - name: server log
         if: always()
         run: tail -n 200 /tmp/next.log || true
 
-      - name: publish report to ci/results branch
+      - name: publish reports to ci/results branch
         if: always()
         run: |
           mkdir -p ci-report
-          cp nzb-live-streaming-platform/ci-report/report.json ci-report/report.json 2>/dev/null || echo '{"error":"no report"}' > ci-report/report.json
+          cp nzb-live-streaming-platform/ci-report/report.json ci-report/report.json 2>/dev/null || echo '{"error":"no probe report"}' > ci-report/report.json
+          cp nzb-live-streaming-platform/ci-report/playback.json ci-report/playback.json 2>/dev/null || true
           cp /tmp/probe.log ci-report/probe.log 2>/dev/null || true
+          cp /tmp/playback.log ci-report/playback.log 2>/dev/null || true
           git config user.name "ci-bot"
           git config user.email "ci-bot@users.noreply.github.com"
           git checkout -B ci/results
@@ -117,5 +144,5 @@ print(); print('codecs:', json.dumps(r.get('codecs',{}))[:1500]); print('playabi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: real-e2e-report
-          path: nzb-live-streaming-platform/ci-report/report.json
+          name: real-e2e-reports
+          path: nzb-live-streaming-platform/ci-report/

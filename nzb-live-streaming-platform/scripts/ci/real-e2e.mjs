@@ -323,6 +323,13 @@ async function main() {
   const vids = (sess.items ?? []).filter((i) => i.kind === "video").sort((a, b) => b.size - a.size);
   if (!vids.length) throw new Error("no video item found in release");
   const item = vids[0];
+  // hand the target over to the browser playback test
+  try {
+    fs.mkdirSync("ci-report", { recursive: true });
+    fs.writeFileSync("ci-report/target.json", JSON.stringify({ sessionId: sid, itemId: item.id, name: item.name, size: item.size, container: item.container, method: item.method }));
+  } catch {
+    /* best effort */
+  }
   step("probing video item", { name: item.name, size: fmt(item.size), container: item.container });
   const base = `${APP}/api/sessions/${sid}/stream/${item.id}`;
 

@@ -7,8 +7,13 @@
  * begin/end). We learn the part size from the first segment, *guess* which
  * segment holds a given offset, and verify against the decoded header —
  * correcting the guess if the poster used irregular part sizes.
+ *
+ * Segments are decoded **progressively**: bytes are handed to the HTTP
+ * response as the article trickles off the socket, so time-to-first-byte is a
+ * round trip instead of "however long a 300 KB…50 MB part takes". The decoded
+ * part is still cached, so a later seek to the same area is instant.
  */
-import { decodeYenc } from "./yenc";
+import { decodeYenc, YencStreamDecoder, type YencStreamMeta } from "./yenc";
 import type { NzbFile } from "./nzb";
 import type { NntpPool } from "./nntp";
 import type { Diag } from "./diag";
@@ -24,11 +29,32 @@ export interface RandomReader {
 
 export type SegState = 0 | 1 | 2 | 3; // none | inflight | ok | error
 
+/** bytes of every part kept so a late consumer (analyser) can still read the head */
+const HEAD_CAP = 64 * 1024;
+
+interface LiveHandle {
+  index: number;
+  /** resolves as soon as the yEnc header of the part has been parsed */
+  meta: Promise<YencStreamMeta | null>;
+  /** resolves once the whole part is decoded (always resolves, never rejects) */
+  done: Promise<CachedSegment>;
+  /** decoded pieces in order — a consumer joining late replays these */
+  pieces: Uint8Array[];
+  head: Uint8Array;
+  headLen: number;
+  /** decoded bytes already handed out — a consumer joining later can't use them */
+  emitted: number;
+  settled: boolean;
+  waiters: Array<() => void>;
+}
+
 export class NzbVirtualFile implements RandomReader {
   private _size = 0;
   private partSize = 0;
   private initPromise: Promise<void> | null = null;
   private inflight = new Map<number, Promise<CachedSegment>>();
+  /** progressive fetches in flight, keyed by segment index */
+  private lives = new Map<number, LiveHandle>();
   /** learned [begin,end] per segment index */
   private ranges = new Map<number, { begin: number; end: number }>();
   readonly states: Uint8Array;
@@ -63,30 +89,52 @@ export class NzbVirtualFile implements RandomReader {
     return this.partSize;
   }
 
-  /** Fetch + decode the first segment to learn the true size and part size. */
+  /** Learn the true size and part size. Resolves as soon as the yEnc header
+   *  arrives (one round trip) — the rest of segment 0 keeps loading in the
+   *  background and lands in the cache. */
   init(): Promise<void> {
     if (this.initialized) return Promise.resolve();
     if (!this.initPromise) {
       this.initPromise = (async () => {
-        const seg = await this.segment(0);
+        let seg: CachedSegment;
+        const live = this.ensureLive(0);
+        if (live) {
+          const meta = await live.meta.catch(() => null);
+          if (meta && meta.fileSize && meta.partSize) {
+            this._size = meta.fileSize;
+            this.partSize = meta.partSize;
+            this.encoding = meta.encoding;
+            if (meta.header.name && !this.yencName) this.yencName = meta.header.name;
+            this.initialized = true;
+            this.logLayout();
+            return;
+          }
+          seg = await live.done;
+        } else {
+          seg = await this.segment(0);
+        }
         if (seg.fileSize && seg.fileSize > 0) this._size = seg.fileSize;
         else if (this.file.segments.length === 1) this._size = seg.data.length;
         this.partSize = Math.max(1, seg.data.length);
         this.initialized = true;
-        this.diag.info("segment", `file#${this.file.index} layout: size=${this._size} partSize=${this.partSize} segments=${this.segmentCount} name="${this.yencName ?? this.resolvedName}"`, {
-          file: this.file.index,
-          size: this._size,
-          partSize: this.partSize,
-          segments: this.segmentCount,
-          yencName: this.yencName,
-          encoding: this.encoding,
-        });
+        this.logLayout();
       })().catch((e) => {
         this.initPromise = null;
         throw e;
       });
     }
     return this.initPromise;
+  }
+
+  private logLayout() {
+    this.diag.info("segment", `file#${this.file.index} layout: size=${this._size} partSize=${this.partSize} segments=${this.segmentCount} name="${this.yencName ?? this.resolvedName}"`, {
+      file: this.file.index,
+      size: this._size,
+      partSize: this.partSize,
+      segments: this.segmentCount,
+      yencName: this.yencName,
+      encoding: this.encoding,
+    });
   }
 
   private cacheKey(i: number) {
@@ -122,17 +170,9 @@ export class NzbVirtualFile implements RandomReader {
     try {
       const r = await this.pool.fetchBody(s.messageId, { groups: this.file.groups, label });
       const y = decodeYenc(r.raw);
-      this.encoding = y.encoding;
-      if (y.header.name && !this.yencName) this.yencName = y.header.name;
       this.diag.stats.bytesDownloaded += r.wireBytes;
       this.diag.stats.bytesDecoded += y.data.length;
-      let begin = y.begin;
-      let end = y.end;
-      if (y.encoding !== "yenc" || y.header.begin == null) {
-        // no part header: infer position
-        begin = this.partSize ? i * this.partSize : 0;
-        end = begin + y.data.length - 1;
-      }
+      const { seg, begin, end } = this.buildSegment(i, y, y.data);
       this.ranges.set(i, { begin, end });
       const crcBad = y.crcOk === false;
       const sizeBad = y.sizeOk === false || y.data.length !== end - begin + 1;
@@ -156,27 +196,212 @@ export class NzbVirtualFile implements RandomReader {
         crcOk: y.crcOk,
         encoding: y.encoding,
       });
-      return { data: y.data, begin, end, fileSize: y.fileSize, ok: !crcBad, error: crcBad ? "crc" : undefined };
+      return { ...seg, ok: !crcBad, error: crcBad ? "crc" : undefined };
     } catch (e) {
-      this.states[i] = 3;
-      this.diag.stats.segmentsFailed++;
-      const msg = (e as Error).message;
-      this.diag.error("segment", `${label} FAILED: ${msg} <${s.messageId}>`, {
-        file: this.file.index,
-        seg: i,
-        messageId: s.messageId,
-        error: msg,
+      return this.zeroFill(i, e as Error);
+    }
+  }
+
+  /** Shared offset bookkeeping for a decoded part. */
+  private buildSegment(i: number, y: { encoding: string; header: { begin?: number; end?: number }; fileSize: number | null; data?: Uint8Array }, data: Uint8Array) {
+    let begin = (y as { begin?: number }).begin ?? 0;
+    let end = (y as { end?: number }).end ?? 0;
+    if (y.encoding !== "yenc" || y.header.begin == null) {
+      begin = this.partSize ? i * this.partSize : 0;
+      end = begin + data.length - 1;
+    }
+    return { seg: { data, begin, end, fileSize: y.fileSize } as CachedSegment, begin, end };
+  }
+
+  private zeroFill(i: number, e: Error): CachedSegment {
+    const s = this.file.segments[i];
+    this.states[i] = 3;
+    this.diag.stats.segmentsFailed++;
+    const msg = e.message;
+    this.diag.error("segment", `file#${this.file.index} seg ${i + 1}/${this.segmentCount} FAILED: ${msg} <${s.messageId}>`, {
+      file: this.file.index,
+      seg: i,
+      messageId: s.messageId,
+      error: msg,
+    });
+    // Zero-fill so playback can continue past the hole (like a scratched disc).
+    const begin = this.partSize ? i * this.partSize : 0;
+    const len = this.partSize ? Math.max(0, Math.min(this.partSize, this._size - begin)) : Math.floor(s.bytes / 1.03);
+    if (i === 0 && !this.initialized) throw e; // can't even establish layout
+    const seg: CachedSegment = { data: new Uint8Array(len), begin, end: begin + len - 1, fileSize: null, ok: false, error: msg };
+    this.ranges.set(i, { begin: seg.begin, end: seg.end });
+    return seg;
+  }
+
+
+
+  /* --------------------------- progressive fetch --------------------------- */
+
+  /**
+   * Get (or start) the progressive fetch of segment `i`. Every consumer of a
+   * part shares one NNTP fetch: the analyser only needs the head, a stream
+   * needs the whole body, and both must not trigger a second download.
+   */
+  private ensureLive(i: number): LiveHandle | null {
+    if (i < 0 || i >= this.segmentCount) return null;
+    if (segmentCache.has(this.cacheKey(i))) return null;
+    const existing = this.lives.get(i);
+    if (existing) return existing;
+    // a batch fetch (prefetch / random read) is already downloading this part
+    if (this.inflight.has(i)) return null;
+
+    let resolveMeta: (m: YencStreamMeta | null) => void = () => {};
+    const meta = new Promise<YencStreamMeta | null>((r) => (resolveMeta = r));
+    const h: LiveHandle = {
+      index: i,
+      meta,
+      done: null as unknown as Promise<CachedSegment>,
+      pieces: [],
+      head: new Uint8Array(HEAD_CAP),
+      headLen: 0,
+      emitted: 0,
+      settled: false,
+      waiters: [],
+    };
+    const fetch = this.fetchSegmentStreaming(h, (m) => resolveMeta(m));
+    h.done = fetch;
+    this.lives.set(i, h);
+    this.inflight.set(i, fetch);
+    void fetch
+      .then((seg) => {
+        segmentCache.set(this.cacheKey(i), seg);
+        this.diag.stats.cacheBytes = segmentCache.bytes;
+      })
+      .catch(() => {})
+      .finally(() => {
+        h.settled = true;
+        this.wakeLive(h);
+        this.lives.delete(i);
+        this.inflight.delete(i);
       });
-      // Zero-fill so playback can continue past the hole (like a scratched disc).
-      const begin = this.partSize ? i * this.partSize : 0;
-      const len = this.partSize
-        ? Math.max(0, Math.min(this.partSize, this._size - begin))
-        : Math.floor(s.bytes / 1.03);
-      if (i === 0 && !this.initialized) throw e; // can't even establish layout
-      const seg: CachedSegment = { data: new Uint8Array(len), begin, end: begin + len - 1, fileSize: null, ok: false, error: msg };
-      this.ranges.set(i, { begin: seg.begin, end: seg.end });
+    return h;
+  }
+
+  /**
+   * Start (or join) the progressive fetch of segment `i`. Consumers read the
+   * handle's `pieces` array: bytes that already arrived are replayed, the rest
+   * arrive live. Returns null when the part is already cached.
+   */
+  private startLive(i: number): LiveHandle | null {
+    return this.ensureLive(i);
+  }
+
+  private wakeLive(h: LiveHandle) {
+    const ws = h.waiters.splice(0);
+    for (const w of ws) w();
+  }
+
+  /**
+   * First `n` decoded bytes of a segment, without waiting for the whole part.
+   * Used by the analyser (header sniffing, PAR2 md5-16k) so inspecting a
+   * release costs one round trip instead of one whole article.
+   */
+  async peek(i: number, n: number): Promise<Uint8Array> {
+    const cached = segmentCache.get(this.cacheKey(i));
+    if (cached) return cached.data.subarray(0, Math.min(n, cached.data.length));
+    const h = this.ensureLive(i);
+    if (!h) {
+      const seg = await this.segment(i);
+      return seg.data.subarray(0, Math.min(n, seg.data.length));
+    }
+    const want = Math.min(n, HEAD_CAP);
+    while (h.headLen < want && !h.settled) {
+      await new Promise<void>((r) => h.waiters.push(r));
+    }
+    return h.head.subarray(0, Math.min(want, h.headLen));
+  }
+
+  private async fetchSegmentStreaming(h: LiveHandle, onMeta: (m: YencStreamMeta | null) => void): Promise<CachedSegment> {
+    const i = h.index;
+    const s = this.file.segments[i];
+    this.states[i] = 1;
+    const label = `file#${this.file.index} seg ${i + 1}/${this.segmentCount}`;
+    const dec = new YencStreamDecoder();
+    let metaSent = false;
+    let wireBytes = 0;
+    let ms = 0;
+    const publishMeta = () => {
+      if (metaSent) return;
+      metaSent = true;
+      onMeta(dec.meta);
+      this.encoding = dec.encoding;
+      if (dec.meta?.header.name && !this.yencName) this.yencName = dec.meta.header.name;
+    };
+    try {
+      const gen = this.pool.fetchBodyStream(s.messageId, { groups: this.file.groups, label });
+      for (;;) {
+        const step = await gen.next();
+        if (step.done) {
+          const r = step.value as { wireBytes: number; ms: number };
+          wireBytes = r?.wireBytes ?? 0;
+          ms = r?.ms ?? 0;
+          break;
+        }
+        for (const piece of dec.push(step.value as Uint8Array)) {
+          publishMeta();
+          this.dispatch(h, piece);
+        }
+        publishMeta();
+      }
+    } catch (e) {
+      publishMeta();
+      const seg = this.zeroFill(i, e as Error);
+      h.settled = true;
+      this.wakeLive(h);
       return seg;
     }
+    publishMeta();
+
+    const y = dec.finish();
+    const total = h.emitted;
+    const data = new Uint8Array(total);
+    let o = 0;
+    for (const piece of h.pieces) {
+      data.set(piece, o);
+      o += piece.length;
+    }
+    this.diag.stats.bytesDownloaded += wireBytes;
+    this.diag.stats.bytesDecoded += data.length;
+    const { begin, end } = this.buildSegment(i, y, data);
+    this.ranges.set(i, { begin, end });
+    const crcBad = y.crcOk === false;
+    const sizeBad = y.sizeOk === false || data.length !== end - begin + 1;
+    if (crcBad) this.diag.stats.crcErrors++;
+    this.states[i] = crcBad ? 3 : 2;
+    this.diag.stats.segmentsOk++;
+    const lvl = crcBad || sizeBad ? "warn" : "debug";
+    this.diag.log(lvl, "segment", `${label} ok ${data.length}B in ${ms}ms (streamed)${crcBad ? ` CRC MISMATCH declared=${y.declaredCrc} actual=${y.actualCrc}` : ""}${sizeBad ? " SIZE MISMATCH" : ""}`, {
+      file: this.file.index,
+      seg: i,
+      messageId: s.messageId,
+      wireBytes,
+      decoded: data.length,
+      begin,
+      end,
+      ms,
+      crc: y.actualCrc,
+      declaredCrc: y.declaredCrc,
+      crcOk: y.crcOk,
+      encoding: y.encoding,
+    });
+    return { data, begin, end, fileSize: y.fileSize, ok: !crcBad, error: crcBad ? "crc" : undefined };
+  }
+
+  /** Append a freshly decoded piece and wake every consumer of this part. */
+  private dispatch(h: LiveHandle, piece: Uint8Array) {
+    if (h.headLen < HEAD_CAP) {
+      const take = Math.min(piece.length, HEAD_CAP - h.headLen);
+      h.head.set(piece.subarray(0, take), h.headLen);
+      h.headLen += take;
+    }
+    h.emitted += piece.length;
+    h.pieces.push(piece);
+    this.wakeLive(h);
   }
 
   /** Find the segment index containing `offset` — guess by part size, verify with decoded headers. */
@@ -202,7 +427,8 @@ export class NzbVirtualFile implements RandomReader {
   prefetch(fromIndex: number, count: number) {
     for (let k = fromIndex; k < Math.min(this.segmentCount, fromIndex + count); k++) {
       if (this.states[k] === 0 || (this.states[k] === 3 && !segmentCache.has(this.cacheKey(k)))) {
-        void this.segment(k).catch(() => {});
+        // start it progressively when nothing else is; `segment()` covers the rest
+        if (!this.ensureLive(k)) void this.segment(k).catch(() => {});
       }
     }
   }
@@ -228,17 +454,84 @@ export class NzbVirtualFile implements RandomReader {
     end = Math.min(end, this._size - 1);
     if (start > end) return;
     const prefetchDepth = Math.max(2, Math.min(this.pool.cfg.connections, 12));
-    let { index, seg } = await this.locate(start);
+    const n = this.segmentCount;
+    let index = Math.min(n - 1, Math.max(0, Math.floor(start / this.partSize)));
     let pos = start;
+    let hops = 0;
+    let seg: CachedSegment | null = null;
+
     while (pos <= end) {
       if (signal?.aborted) return;
       this.prefetch(index + 1, prefetchDepth);
+
+      /* --- fast path: the part is already in the cache --- */
+      if (!seg) {
+        const cached = segmentCache.get(this.cacheKey(index));
+        if (cached) {
+          seg = cached;
+        }
+      }
+
+      /* --- live path: stream the part as it arrives --- */
+      if (!seg) {
+        const live = this.startLive(index);
+        if (live && hops <= n + 2) {
+          const meta = await live.meta;
+          // verify the guess before committing: hop if this part doesn't hold `pos`
+          if (meta && meta.encoding === "yenc" && meta.partSize != null && (pos < meta.begin || pos > meta.end)) {
+            index = pos < meta.begin ? Math.max(0, index - 1) : Math.min(n - 1, index + 1);
+            hops++;
+            continue;
+          }
+          if (!meta || meta.encoding !== "yenc" || meta.partSize == null) {
+            // not progressively decodable (uuencode / no =ypart) → wait for the whole part
+            seg = await this.segment(index);
+          } else {
+            let segPos = meta.begin; // file offset of the next decoded byte
+            let pieceIdx = 0;
+            while (true) {
+              if (signal?.aborted) return;
+              if (pieceIdx < live.pieces.length) {
+                const piece = live.pieces[pieceIdx++];
+                const pieceStart = segPos;
+                segPos += piece.length;
+                const from = pos > pieceStart ? pos - pieceStart : 0;
+                // never emit past the end of the requested range — the piece may
+                // straddle it (that used to leak a few bytes into the response
+                // and shift everything after a container chunk boundary)
+                const to = Math.min(piece.length, end + 1 - pieceStart);
+                if (to > from) {
+                  const slice = piece.subarray(from, to);
+                  pos += slice.length;
+                  yield slice;
+                  if (pos > end) break;
+                }
+                continue;
+              }
+              if (live.settled) break;
+              await new Promise<void>((r) => live.waiters.push(r));
+            }
+            index++;
+            seg = null;
+            continue;
+          }
+        } else {
+          // already cached, or being fetched without a usable stream → wait for the part
+          seg = await this.segment(index);
+        }
+      }
+
+      if (!seg) {
+        seg = await this.segment(index);
+      }
+
+      // serve the buffered part
       if (pos < seg.begin) {
-        // gap (missing/irregular part) — zero-fill to keep the stream aligned
         const gap = Math.min(seg.begin - pos, end - pos + 1);
         this.diag.warn("segment", `file#${this.file.index} gap ${gap}B before seg ${index} — zero filling`);
         yield new Uint8Array(gap);
         pos += gap;
+        seg = null;
         continue;
       }
       const from = pos - seg.begin;
@@ -257,11 +550,7 @@ export class NzbVirtualFile implements RandomReader {
         }
         return;
       }
-      seg = await this.segment(index);
-      if (seg.end < pos) {
-        // decoded segment lies entirely before pos (overlap) — advance past it
-        continue;
-      }
+      seg = null;
     }
   }
 
