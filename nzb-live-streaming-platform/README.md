@@ -46,11 +46,12 @@ browser <video>  ──Range──▶  /api/sessions/:id/stream/:item
 
 ## Run locally
 
-```
+```bash
 npm install
-npx drizzle-kit push
 npm run dev
 ```
+
+The database tables are automatically initialized on startup. If `DATABASE_URL` is configured to an active PostgreSQL instance (Neon, Supabase, Docker, etc.), it connects to PostgreSQL; otherwise, it seamlessly uses embedded PGlite storage (`.data/db`) with zero manual setup. If you want to push schema changes directly to PostgreSQL, you can also run `npm run db:push`.
 
 ## End-to-end test (no real provider needed)
 

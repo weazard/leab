@@ -58,11 +58,23 @@ export default function App() {
   const loadSessions = useCallback(async () => setSessions(await api<SessionListRow[]>("/api/sessions")), []);
 
   useEffect(() => {
-    loadProviders().catch((e) => setError(String(e.message)));
-    loadSessions().catch(() => {});
-    const d = localStorage.getItem("nzb.diag");
-    if (d === "1") setDiag(true);
-  }, [loadProviders, loadSessions]);
+    void (async () => {
+      try {
+        const p = await api<ProviderView[]>("/api/providers");
+        setProviders(p);
+        setProviderId((cur) => cur ?? p[0]?.id ?? null);
+        if (!p.length) setShowProviderForm(true);
+      } catch (e) {
+        setError(String((e as Error).message));
+      }
+      try {
+        const s = await api<SessionListRow[]>("/api/sessions");
+        setSessions(s);
+      } catch {}
+      const d = localStorage.getItem("nzb.diag");
+      if (d === "1") setDiag(true);
+    })();
+  }, []);
 
   useEffect(() => localStorage.setItem("nzb.diag", diag ? "1" : "0"), [diag]);
 
@@ -104,8 +116,22 @@ export default function App() {
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("s");
-    if (id) void openSession(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (id) {
+      void (async () => {
+        setError(null);
+        setItem(null);
+        setBusy("loading session");
+        try {
+          const s = await api<SessionFull>(`/api/sessions/${id}`);
+          setSession(s);
+          window.history.replaceState(null, "", `?s=${id}`);
+        } catch (e) {
+          setError((e as Error).message);
+        } finally {
+          setBusy(null);
+        }
+      })();
+    }
   }, []);
 
   const createSession = async (body: Record<string, unknown> | FormData) => {

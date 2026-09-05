@@ -176,6 +176,37 @@ function par2Index(files /* [{name, data}] */) {
 }
 
 /* ------------------------------- fixtures -------------------------------- */
+function ensureFixtures(fxDir) {
+  const mp4Path = path.join(fxDir, "demo.mp4");
+  const jpgPath = path.join(fxDir, "demo.jpg");
+  if (!fs.existsSync(mp4Path)) {
+    const size = 86800000;
+    const buf = Buffer.alloc(size);
+    buf.writeUInt32BE(0x18, 0);
+    buf.write("ftyp", 4, "ascii");
+    buf.write("isom", 8, "ascii");
+    buf.writeUInt32BE(0x00000200, 12);
+    buf.write("isom", 16, "ascii");
+    buf.write("iso2", 20, "ascii");
+    for (let i = 24; i <= size - 4; i += 4) {
+      buf.writeUInt32BE((i * 1103515245 + 12345) >>> 0, i);
+    }
+    fs.writeFileSync(mp4Path, buf);
+  }
+  if (!fs.existsSync(jpgPath)) {
+    const size = 200000;
+    const buf = Buffer.alloc(size);
+    buf[0] = 0xff; buf[1] = 0xd8; buf[2] = 0xff; buf[3] = 0xe0;
+    buf[4] = 0x00; buf[5] = 0x10;
+    buf.write("JFIF", 6, "ascii");
+    buf[10] = 0x00; buf[11] = 0x01; buf[12] = 0x01;
+    for (let i = 13; i <= size - 4; i += 4) {
+      buf.writeUInt32BE((i * 1664525 + 1013904223) >>> 0, i);
+    }
+    fs.writeFileSync(jpgPath, buf);
+  }
+}
+ensureFixtures(fx);
 const mp4 = fs.readFileSync(path.join(fx, "demo.mp4"));
 const jpg = fs.readFileSync(path.join(fx, "demo.jpg"));
 const nfo = Buffer.from(`nzb.stream mock release\n=======================\nvideo : demo.mp4 (${mp4.length} bytes)\nposted: ${new Date().toISOString()}\n`);

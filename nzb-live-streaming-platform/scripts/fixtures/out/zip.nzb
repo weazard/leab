@@ -2,10 +2,10 @@
 <!DOCTYPE nzb PUBLIC "-//newzBin//DTD NZB 1.1//EN" "http://www.newzbin.com/DTD/nzb/nzb-1.1.dtd">
 <nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">
 <head><meta type="name">zip</meta></head>
- <file poster="mock@example.com" date="1788606740" subject="[mock] &quot;bundle.zip&quot; yEnc (1/1)">
+ <file poster="mock@example.com" date="1788631332" subject="[mock] &quot;bundle.zip&quot; yEnc (1/1)">
   <groups><group>alt.binaries.test</group></groups>
   <segments>
-   <segment bytes="120788" number="1">mtoa9th69v$0fa51acff7e3@mock.nntp</segment>
+   <segment bytes="206888" number="1">mtoowx3r9v$f19e1290739c@mock.nntp</segment>
   </segments>
  </file>
 </nzb>
