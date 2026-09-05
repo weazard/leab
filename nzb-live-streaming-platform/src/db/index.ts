@@ -124,7 +124,12 @@ async function initDatabase(): Promise<NodePgDatabase<typeof schema> | PgliteDat
 
 export function getDb(): Promise<NodePgDatabase<typeof schema> | PgliteDatabase<typeof schema>> {
   if (!globalForDb.__arenaDbPromise) {
-    globalForDb.__arenaDbPromise = initDatabase();
+    globalForDb.__arenaDbPromise = initDatabase().catch((e) => {
+      // don't memoize a failure: a transient error (embedded db still warming
+      // up, busy port) should not poison every later request
+      globalForDb.__arenaDbPromise = undefined;
+      throw e;
+    });
   }
   return globalForDb.__arenaDbPromise;
 }

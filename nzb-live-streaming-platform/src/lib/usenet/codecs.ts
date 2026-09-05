@@ -41,7 +41,7 @@ function uniq(arr: string[]): string[] {
 export async function probeCodecs(reader: RandomReader, size: number): Promise<CodecInfo | null> {
   try {
     const headLen = Math.min(size, 2 * 1024 * 1024);
-    const head = await reader.read(0, headLen - 1);
+    const head = await reader.read(0, headLen);
     if (head.length < 16) return null;
 
     // EBML (Matroska / WebM)
@@ -69,14 +69,18 @@ export async function probeCodecs(reader: RandomReader, size: number): Promise<C
       const boxes = topLevelBoxes(head);
       let moov = boxes.find((b) => b.type === "moov");
       let moovAtEnd = false;
+      let moovBytes: Uint8Array | null = null;
       if (!moov && size > head.length) {
-        // moov at the end: fetch the tail and look for it there
+        // moov at the end: fetch the tail and search for the box there (the
+        // tail starts at an arbitrary byte offset, so scan rather than walk)
         const tailLen = Math.min(size, 16 * 1024 * 1024);
-        const tail = await reader.read(size - tailLen, size - 1);
-        moov = topLevelBoxes(tail).find((b) => b.type === "moov");
-        moovAtEnd = !!moov;
+        const tail = await reader.read(size - tailLen, tailLen);
+        moovBytes = findBox(tail, "moov");
+        moovAtEnd = !!moovBytes;
+      } else if (moov) {
+        moovBytes = head.subarray(moov.at, moov.at + moov.size);
       }
-      const codecs = moov ? parseStsd(Buffer.from(head).subarray(moov.at, moov.at + moov.size)) : parseStsdQuick(head);
+      const codecs = moovBytes ? parseStsd(moovBytes) : parseStsdQuick(head);
       const video = codecs.filter((c) => /^(avc1|avc3|hev1|hvc1|vp09|av01|mp4v|dvh1|dvhe)$/.test(c));
       const audio = codecs.filter((c) => /^(mp4a|ac-3|ec-3|Opus|alac|dtsc|dtsh|dtsl|fLaC|samr|sawb)$/.test(c));
       const info: CodecInfo = {
@@ -145,6 +149,21 @@ function topLevelBoxes(buf: Uint8Array): Box[] {
   return out;
 }
 
+/** Find a box by fourcc anywhere in a buffer (used on tail reads). */
+function findBox(buf: Uint8Array, type: string): Uint8Array | null {
+  const needle = Buffer.from(type, "latin1");
+  let from = 0;
+  for (;;) {
+    const idx = Buffer.from(buf).indexOf(needle, from);
+    if (idx < 0 || idx < 4) return null;
+    const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    const size = view.getUint32(idx - 4);
+    // a trailing box may be cut short by the read window — clamp instead of skipping
+    if (size >= 8 && idx - 4 + 8 <= buf.length) return buf.subarray(idx - 4, Math.min(buf.length, idx - 4 + size));
+    from = idx + 1;
+  }
+}
+
 /** Read the `stsd` sample entries out of a moov box. */
 function parseStsd(moov: Uint8Array): string[] {
   const idx = td.decode(moov).indexOf("stsd");
@@ -152,7 +171,8 @@ function parseStsd(moov: Uint8Array): string[] {
   const view = new DataView(moov.buffer, moov.byteOffset, moov.byteLength);
   const count = view.getUint32(idx + 8);
   const out: string[] = [];
-  let q = idx + 16;
+  // stsd is a full box: size(4) + type(4) + version/flags(4) + entry_count(4)
+  let q = idx + 12;
   for (let i = 0; i < count && q + 8 <= moov.length; i++) {
     const size = view.getUint32(q);
     const type = td.decode(moov.subarray(q + 4, q + 8));
