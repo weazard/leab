@@ -1,0 +1,121 @@
+name: real e2e (live provider)
+
+# Runs the app against a real NNTP provider + newznab indexer on a GitHub
+# runner (full internet, unlike the dev sandbox) and pushes the probe report
+# back to the `ci/results` branch so it can be read without the Actions API.
+#
+# Credentials below are TEMPORARY test accounts. They can be overridden at any
+# time by adding repository secrets NEWZNAB_API_KEY / NNTP_USER / NNTP_PASS.
+
+on:
+  workflow_dispatch:
+    inputs:
+      query:
+        description: indexer search query
+        default: "Silo S01E01"
+      pick_max_bytes:
+        description: max release size to pick
+        default: "4000000000"
+  push:
+    branches: [arena/01a07384-leab]
+    paths:
+      - .github/workflows/real-e2e.yml
+      - scripts/ci/real-e2e.mjs
+      - nzb-live-streaming-platform/scripts/ci/real-e2e.mjs
+      - scripts/ci/TRIGGER
+
+concurrency:
+  group: real-e2e
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NEWZNAB_URL: https://api.nzb.life
+      NEWZNAB_API_KEY: ${{ secrets.NEWZNAB_API_KEY || '4672408959beb08e7549291b12882bce' }}
+      PROVIDER_HOST: news.supernews.com
+      PROVIDER_PORT: "563"
+      PROVIDER_SSL: "1"
+      PROVIDER_USER: ${{ secrets.NNTP_USER || 'yspery@gmail.com' }}
+      PROVIDER_PASS: ${{ secrets.NNTP_PASS || 'DadeDa123!' }}
+      PROVIDER_CONNS: "10"
+      SEGMENT_CACHE_MB: "256"
+      MAX_INFLATE_MB: "512"
+      NNTP_TIMEOUT_MS: "30000"
+      SEARCH_QUERY: ${{ github.event.inputs.query || 'Silo S01E01' }}
+      PICK_MAX_BYTES: ${{ github.event.inputs.pick_max_bytes || '4000000000' }}
+      DO_FFPROBE: "1"
+      REPORT_OUT: ci-report/report.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nzb-live-streaming-platform/package-lock.json
+
+      - name: install
+        working-directory: nzb-live-streaming-platform
+        run: npm ci --no-audit --no-fund
+
+      - name: build
+        working-directory: nzb-live-streaming-platform
+        run: npm run build
+
+      - name: start server
+        working-directory: nzb-live-streaming-platform
+        run: |
+          (nohup npm run start -- -H 127.0.0.1 -p 3000 > /tmp/next.log 2>&1 &)
+          for i in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:3000/api/health > /dev/null; then
+              echo "server up after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::server did not start"; tail -n 100 /tmp/next.log; exit 1
+
+      - name: probe (live provider + indexer)
+        id: probe
+        working-directory: nzb-live-streaming-platform
+        run: node scripts/ci/real-e2e.mjs http://127.0.0.1:3000 2>&1 | tee /tmp/probe.log
+        continue-on-error: true
+
+      - name: probe summary
+        if: always()
+        run: |
+          echo "## real e2e" >> $GITHUB_STEP_SUMMARY
+          [ -f nzb-live-streaming-platform/ci-report/report.json ] \
+            && python3 -c "import json,sys; r=json.load(open('nzb-live-streaming-platform/ci-report/report.json')); \
+print('checks:', r.get('summary')); print(); [print(('PASS' if c['pass'] else 'FAIL'), c['name'], '-', c['detail']) for c in r.get('checks',[])]; \
+print(); [print('FINDING', f['sev'], f['msg']) for f in r.get('findings',[])]; print(); print('items:', json.dumps(r.get('items',[])[:8], indent=1)[:3000]); \
+print(); print('codecs:', json.dumps(r.get('codecs',{}))[:1500]); print('playability:', json.dumps(r.get('playability',{}), indent=1)[:2000])" >> $GITHUB_STEP_SUMMARY \
+            || echo "no report" >> $GITHUB_STEP_SUMMARY
+
+      - name: server log
+        if: always()
+        run: tail -n 200 /tmp/next.log || true
+
+      - name: publish report to ci/results branch
+        if: always()
+        run: |
+          mkdir -p ci-report
+          cp nzb-live-streaming-platform/ci-report/report.json ci-report/report.json 2>/dev/null || echo '{"error":"no report"}' > ci-report/report.json
+          cp /tmp/probe.log ci-report/probe.log 2>/dev/null || true
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git checkout -B ci/results
+          git add -f ci-report
+          git commit -m "ci: real e2e report ${{ github.run_id }}"
+          git push -f https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git ci/results
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-e2e-report
+          path: nzb-live-streaming-platform/ci-report/report.json

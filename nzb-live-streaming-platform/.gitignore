@@ -40,3 +40,6 @@ next-env.d.ts
 /scripts/fixtures/out/demo.release.part1.rar
 /scripts/fixtures/out/zipdeflate.nzb
 /scripts/fixtures/out/zipsrc/cover.jpg
+
+# ci reports
+/ci-report/
