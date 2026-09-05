@@ -252,7 +252,8 @@ export class NntpConnection {
           yield tail;
           emitted += tail.length;
         }
-        wireBytes += idx + termLen;
+        // `emitted` covers everything already yielded; idx+termLen is this last slice
+        wireBytes += emitted + idx + termLen;
         this.buf = acc.subarray(idx + termLen);
         this.fetched++;
         this.lastUsed = Date.now();
@@ -321,12 +322,16 @@ function findTerminator(buf: Uint8Array): number {
 interface Waiter {
   resolve: (c: NntpConnection) => void;
   reject: (e: Error) => void;
+  /** higher wins — a seek must not queue behind speculative prefetches */
+  priority: number;
+  seq: number;
 }
 
 export class NntpPool {
   private conns: NntpConnection[] = [];
   private waiters: Waiter[] = [];
   private closed = false;
+  private seq = 0;
   private idleTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -358,7 +363,7 @@ export class NntpPool {
     }
   }
 
-  private async acquire(): Promise<NntpConnection> {
+  private async acquire(priority = 0): Promise<NntpConnection> {
     if (this.closed) throw new Error("pool closed");
     const free = this.conns.find((c) => !c.busy && c.alive);
     if (free) {
@@ -393,7 +398,7 @@ export class NntpPool {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await new Promise<NntpConnection>((resolve, reject) => {
-        const entry: Waiter = { resolve, reject };
+        const entry: Waiter = { resolve, reject, priority, seq: ++this.seq };
         this.waiters.push(entry);
         timer = setTimeout(() => {
           const i = this.waiters.indexOf(entry);
@@ -406,6 +411,18 @@ export class NntpPool {
     }
   }
 
+  /** Highest priority first, then FIFO. */
+  private takeWaiter(): Waiter | undefined {
+    if (!this.waiters.length) return undefined;
+    let best = 0;
+    for (let i = 1; i < this.waiters.length; i++) {
+      const a = this.waiters[i];
+      const b = this.waiters[best];
+      if (a.priority > b.priority || (a.priority === b.priority && a.seq < b.seq)) best = i;
+    }
+    return this.waiters.splice(best, 1)[0];
+  }
+
   private release(c: NntpConnection, broken = false) {
     if (broken || !c.alive) {
       c.close();
@@ -414,15 +431,15 @@ export class NntpPool {
       this.diag.stats.connectionsOpen = this.conns.length;
       c.busy = false;
       // wake a waiter by letting it create a new connection
-      const w = this.waiters.shift();
+      const w = this.takeWaiter();
       if (w) {
-        void this.acquire().then(w.resolve, w.reject);
+        void this.acquire(w.priority).then(w.resolve, w.reject);
       }
       this.diag.stats.connectionsBusy = this.busy;
       return;
     }
     c.lastUsed = Date.now();
-    const w = this.waiters.shift();
+    const w = this.takeWaiter();
     if (w) {
       w.resolve(c); // stays busy
       return;
@@ -437,14 +454,15 @@ export class NntpPool {
    */
   async fetchBody(
     messageId: string,
-    opts: { groups?: string[]; attempts?: number; label?: string } = {},
+    opts: { groups?: string[]; attempts?: number; label?: string; priority?: number } = {},
   ): Promise<{ raw: Uint8Array; wireBytes: number; ms: number; connId: number; attempt: number }> {
     const attempts = opts.attempts ?? 3;
+    const priority = opts.priority ?? 0;
     let lastErr: Error | null = null;
     for (let attempt = 1; attempt <= attempts; attempt++) {
       let conn: NntpConnection | null = null;
       try {
-        conn = await this.acquire();
+        conn = await this.acquire(priority);
         try {
           const r = await conn.body(messageId);
           this.release(conn);
@@ -496,15 +514,16 @@ export class NntpPool {
    */
   async *fetchBodyStream(
     messageId: string,
-    opts: { groups?: string[]; attempts?: number; label?: string } = {},
+    opts: { groups?: string[]; attempts?: number; label?: string; priority?: number } = {},
   ): AsyncGenerator<Uint8Array, { wireBytes: number; ms: number; connId: number; attempt: number }, void> {
     const attempts = opts.attempts ?? 3;
+    const priority = opts.priority ?? 0;
     let lastErr: Error | null = null;
     for (let attempt = 1; attempt <= attempts; attempt++) {
       let conn: NntpConnection | null = null;
       let started = false;
       try {
-        conn = await this.acquire();
+        conn = await this.acquire(priority);
         const gen = conn.bodyChunks(messageId, opts.groups);
         let result: { wireBytes: number; ms: number } | null = null;
         let released = false;

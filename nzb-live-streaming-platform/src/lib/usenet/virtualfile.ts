@@ -44,6 +44,12 @@ interface LiveHandle {
   headLen: number;
   /** decoded bytes already handed out — a consumer joining later can't use them */
   emitted: number;
+  /**
+   * Bumped whenever the fetch restarts: consumers that replayed pieces from an
+   * earlier attempt would read the wrong offsets, so they bail out and read
+   * the completed part instead.
+   */
+  gen: number;
   settled: boolean;
   waiters: Array<() => void>;
 }
@@ -142,7 +148,8 @@ export class NzbVirtualFile implements RandomReader {
   }
 
   /** Fetch (or get cached) segment i, decoded. Never rejects for missing articles: returns zero-filled data flagged with error. */
-  segment(i: number): Promise<CachedSegment> {
+  /** @param prio 1 = actively streaming to a client, -1 = speculative prefetch */
+  segment(i: number, prio = 0): Promise<CachedSegment> {
     const key = this.cacheKey(i);
     const cached = segmentCache.get(key);
     if (cached) {
@@ -152,7 +159,7 @@ export class NzbVirtualFile implements RandomReader {
     const running = this.inflight.get(i);
     if (running) return running;
     this.diag.stats.cacheMisses++;
-    const p = this.fetchSegment(i)
+    const p = this.fetchSegment(i, prio)
       .then((seg) => {
         segmentCache.set(key, seg);
         this.diag.stats.cacheBytes = segmentCache.bytes;
@@ -163,12 +170,12 @@ export class NzbVirtualFile implements RandomReader {
     return p;
   }
 
-  private async fetchSegment(i: number): Promise<CachedSegment> {
+  private async fetchSegment(i: number, prio = 0): Promise<CachedSegment> {
     const s = this.file.segments[i];
     this.states[i] = 1;
     const label = `file#${this.file.index} seg ${i + 1}/${this.segmentCount}`;
     try {
-      const r = await this.pool.fetchBody(s.messageId, { groups: this.file.groups, label });
+      const r = await this.pool.fetchBody(s.messageId, { groups: this.file.groups, label, priority: prio });
       const y = decodeYenc(r.raw);
       this.diag.stats.bytesDownloaded += r.wireBytes;
       this.diag.stats.bytesDecoded += y.data.length;
@@ -242,13 +249,17 @@ export class NzbVirtualFile implements RandomReader {
    * part shares one NNTP fetch: the analyser only needs the head, a stream
    * needs the whole body, and both must not trigger a second download.
    */
-  private ensureLive(i: number): LiveHandle | null {
+  private ensureLive(i: number, prio = 0): LiveHandle | null {
     if (i < 0 || i >= this.segmentCount) return null;
-    if (segmentCache.has(this.cacheKey(i))) return null;
+    if (segmentCache.has(this.cacheKey(i))) {
+      this.diag.stats.cacheHits++;
+      return null;
+    }
     const existing = this.lives.get(i);
     if (existing) return existing;
     // a batch fetch (prefetch / random read) is already downloading this part
     if (this.inflight.has(i)) return null;
+    this.diag.stats.cacheMisses++;
 
     let resolveMeta: (m: YencStreamMeta | null) => void = () => {};
     const meta = new Promise<YencStreamMeta | null>((r) => (resolveMeta = r));
@@ -260,10 +271,11 @@ export class NzbVirtualFile implements RandomReader {
       head: new Uint8Array(HEAD_CAP),
       headLen: 0,
       emitted: 0,
+      gen: 0,
       settled: false,
       waiters: [],
     };
-    const fetch = this.fetchSegmentStreaming(h, (m) => resolveMeta(m));
+    const fetch = this.fetchSegmentStreaming(h, (m) => resolveMeta(m), prio);
     h.done = fetch;
     this.lives.set(i, h);
     this.inflight.set(i, fetch);
@@ -287,8 +299,8 @@ export class NzbVirtualFile implements RandomReader {
    * handle's `pieces` array: bytes that already arrived are replayed, the rest
    * arrive live. Returns null when the part is already cached.
    */
-  private startLive(i: number): LiveHandle | null {
-    return this.ensureLive(i);
+  private startLive(i: number, prio = 1): LiveHandle | null {
+    return this.ensureLive(i, prio);
   }
 
   private wakeLive(h: LiveHandle) {
@@ -316,7 +328,7 @@ export class NzbVirtualFile implements RandomReader {
     return h.head.subarray(0, Math.min(want, h.headLen));
   }
 
-  private async fetchSegmentStreaming(h: LiveHandle, onMeta: (m: YencStreamMeta | null) => void): Promise<CachedSegment> {
+  private async fetchSegmentStreaming(h: LiveHandle, onMeta: (m: YencStreamMeta | null) => void, prio = 0): Promise<CachedSegment> {
     const i = h.index;
     const s = this.file.segments[i];
     this.states[i] = 1;
@@ -333,7 +345,7 @@ export class NzbVirtualFile implements RandomReader {
       if (dec.meta?.header.name && !this.yencName) this.yencName = dec.meta.header.name;
     };
     try {
-      const gen = this.pool.fetchBodyStream(s.messageId, { groups: this.file.groups, label });
+      const gen = this.pool.fetchBodyStream(s.messageId, { groups: this.file.groups, label, priority: prio });
       for (;;) {
         const step = await gen.next();
         if (step.done) {
@@ -425,10 +437,14 @@ export class NzbVirtualFile implements RandomReader {
   }
 
   prefetch(fromIndex: number, count: number) {
+    // Leave room for interactive reads: a seek must never queue behind the
+    // speculative look-ahead of the previous request.
+    const maxInflight = Math.max(1, this.pool.cfg.connections - 2);
     for (let k = fromIndex; k < Math.min(this.segmentCount, fromIndex + count); k++) {
+      if (this.inflight.size >= maxInflight) return;
       if (this.states[k] === 0 || (this.states[k] === 3 && !segmentCache.has(this.cacheKey(k)))) {
         // start it progressively when nothing else is; `segment()` covers the rest
-        if (!this.ensureLive(k)) void this.segment(k).catch(() => {});
+        if (!this.ensureLive(k, -1)) void this.segment(k, -1).catch(() => {});
       }
     }
   }
@@ -485,12 +501,19 @@ export class NzbVirtualFile implements RandomReader {
           }
           if (!meta || meta.encoding !== "yenc" || meta.partSize == null) {
             // not progressively decodable (uuencode / no =ypart) → wait for the whole part
-            seg = await this.segment(index);
+            seg = await this.segment(index, 1);
           } else {
+            const gen = live.gen;
             let segPos = meta.begin; // file offset of the next decoded byte
             let pieceIdx = 0;
             while (true) {
               if (signal?.aborted) return;
+              if (live.gen !== gen) {
+                // the fetch restarted under us (transient error / connection
+                // lost): the pieces we replayed are gone, read the finished part
+                seg = await this.segment(index, 1);
+                break;
+              }
               if (pieceIdx < live.pieces.length) {
                 const piece = live.pieces[pieceIdx++];
                 const pieceStart = segPos;
@@ -517,12 +540,12 @@ export class NzbVirtualFile implements RandomReader {
           }
         } else {
           // already cached, or being fetched without a usable stream → wait for the part
-          seg = await this.segment(index);
+          seg = await this.segment(index, 1);
         }
       }
 
       if (!seg) {
-        seg = await this.segment(index);
+        seg = await this.segment(index, 1);
       }
 
       // serve the buffered part
