@@ -24,14 +24,19 @@ browser <video>  ──Range──▶  /api/sessions/:id/stream/:item
 - **Sources** — newznab indexer search (nzb.life preconfigured via `NEWZNAB_URL` / `NEWZNAB_API_KEY`,
   overridable in the UI), NZB URL, `.nzb` upload, pasted XML. NZBs are persisted so any serverless
   instance can rebuild a session.
-- **Formats** — yEnc (+uuencode fallback), **RAR4 & RAR5** multi-volume stored archives, **ZIP** stored
-  entries (incl. ZIP64), **PAR2** index parsing (used to recover real file names of obfuscated posts by
-  size + MD5-16k; on-the-fly repair is not attempted), magic-byte detection for mp4/mov/mkv/webm/avi/
-  ts/mpg/wmv/flv/mp3/flac/ogg/wav/m4a/jpg/png/gif/webp/pdf/nfo/srt/…
-  Compressed/encrypted archive entries are listed with the reason they can't be streamed.
-- **Player** — `<video>`/`<audio>`/image/PDF/text viewers, sidecar `.srt` auto-converted to WebVTT,
-  mime override (e.g. serve MKV as `video/webm`, which Chrome demuxes), "open in VLC" `.m3u`,
-  direct download.
+- **Formats** — yEnc (+uuencode fallback), **RAR4 & RAR5** multi-volume archives (stored *and*
+  compressed m1–m5), **ZIP** stored + deflate entries (incl. ZIP64), **PAR2** index parsing (used to
+  recover real file names of obfuscated posts by size + MD5-16k; on-the-fly repair is not attempted),
+  magic-byte detection for mp4/mov/mkv/webm/avi/ts/mpg/wmv/flv/mp3/flac/ogg/wav/m4a/jpg/png/gif/webp/pdf/nfo/srt/…
+  Encrypted entries are listed with the reason they can't be streamed.
+- **Compressed playback** — ZIP deflate is inflated with the Web `DecompressionStream` API (works on
+  CF Workers / Wasmer / Node). Compressed RAR is extracted with **7-Zip WASM** (no native binary, no
+  stdout). The player waits with a progress bar, then plays from a local blob so seeking works even
+  when `moov` is at the end of the file. VLC/download hit the same inflated stream. Capped by
+  `MAX_INFLATE_MB` (default 512).
+- **Player** — `<video>`/`<audio>`/image/PDF/text viewers with buffering status, keyboard shortcuts
+  (space / arrows / f / m), sidecar `.srt` auto-converted to WebVTT, mime override (e.g. serve MKV as
+  `video/webm`, which Chrome demuxes), "open in VLC" `.m3u`, direct download.
 - **Diagnostics checkbox** — live SSE feed of *everything*: connection lifecycle, every segment
   (message-id, bytes, ms, connection, attempt, CRC declared vs actual), 430/timeout errors, retries,
   archive header parsing, range requests, zero-filled holes, cache stats, plus a colour-coded
@@ -55,10 +60,10 @@ node scripts/e2e.mjs http://127.0.0.1:3000
 ```
 
 The harness posts a real 86 MB MP4 (direct, inside a 3-volume stored RAR with obfuscated names +
-PAR2, inside a stored ZIP, and a "broken" copy with a missing segment and a corrupted CRC) and
-verifies byte-exact range responses, full-file SHA, volume-boundary seeks, SRT→VTT, 416 handling,
-diagnostics content, SSE, indexer search and persistence. The RAR5 walker is additionally verified
-against libarchive's RAR5 test corpus.
+PAR2, inside a stored ZIP, a deflate ZIP, and a "broken" copy with a missing segment and a corrupted
+CRC) and verifies byte-exact range responses, full-file SHA, volume-boundary seeks, SRT→VTT, 416
+handling, diagnostics content, SSE, indexer search and persistence. The RAR5 walker is additionally
+verified against libarchive's RAR5 test corpus.
 
 ## Deploying to edge / serverless
 
@@ -75,6 +80,10 @@ Postgres (Neon/Supabase/etc. via `DATABASE_URL`).
 Set `SEGMENT_CACHE_MB` to match the instance memory (default 256). Because the cache and NNTP pool are
 per-instance, pin streaming requests to a region for best cache hit rates.
 
+Compressed RAR inflate keeps the unpacked file in instance memory (capped by `MAX_INFLATE_MB`). On tiny
+edge isolates prefer stored (m0) releases or raise the limit on a fat Node host. 7-Zip WASM is loaded
+from `node_modules` (`serverExternalPackages`); it never writes to real stdout/stdin.
+
 ## Environment
 
 ```
@@ -82,5 +91,7 @@ DATABASE_URL=postgres://...
 NEWZNAB_URL=https://api.nzb.life
 NEWZNAB_API_KEY=...            # or set it in the UI (stored in the settings table)
 SEGMENT_CACHE_MB=256
+MAX_INFLATE_MB=512             # unpacked-size cap for compressed RAR/ZIP
+RAR_EXTRACT_TIMEOUT_MS=180000  # 7-Zip WASM extract watchdog
 NNTP_TIMEOUT_MS=30000
 ```

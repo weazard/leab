@@ -244,6 +244,7 @@ export default function App() {
                     <div className="text-[10px] text-zinc-500 flex gap-2 mt-0.5 pl-6">
                       <span>{it.ext.toUpperCase() || "BIN"}</span>
                       {it.container !== "direct" && <span className="text-orange-300">in {it.container}</span>}
+                      {it.needsDecompress && <span className="text-amber-300">{it.method ?? "compressed"}</span>}
                       {it.playable ? <span className="text-emerald-400">streamable</span> : <span className="text-zinc-500 truncate" title={it.reason}>{it.reason}</span>}
                     </div>
                   </button>
@@ -290,7 +291,7 @@ export default function App() {
         )}
       </main>
       <footer className="max-w-7xl mx-auto px-4 py-6 text-[11px] text-zinc-600">
-        Streams are assembled on the fly from yEnc segments (NNTP → decode → CRC → RAR/ZIP map → HTTP range). Nothing is written to disk; the segment cache is in memory only.
+        Streams are assembled on the fly from yEnc segments (NNTP → decode → CRC → RAR/ZIP map → HTTP range). Compressed RAR/ZIP is inflated in WASM / DecompressionStream. Nothing is written to disk; the segment cache is in memory only.
       </footer>
     </div>
   );

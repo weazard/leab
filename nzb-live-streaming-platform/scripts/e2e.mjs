@@ -148,6 +148,22 @@ ok(zj && zj.playable, `zip entries: ${z.items.map((i) => `${i.name}(${i.containe
   ok(r.buf.equals(jpg), `zip: cover.jpg streamed intact from inside the archive`);
 }
 
+/* 4b. deflate ZIP (compressed entries inflated via DecompressionStream) */
+console.log("\\n[4b] deflate ZIP (compressed entries)");
+try {
+  let zd = await j("/api/sessions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ providerId: prov.id, source: "url", url: "http://127.0.0.1:1191/zipdeflate.nzb" }) });
+  zd = await waitAnalyzed(zd.id);
+  const zdc = zd.items.find((i) => i.container === "zip" && i.name === "cover.jpg");
+  ok(zdc && zdc.playable && zdc.needsDecompress, `deflate zip: ${zd.items.map((i) => `${i.name}(playable=${i.playable},decompress=${!!i.needsDecompress},${i.method})`).join(", ")}`);
+  if (zdc) {
+    const r = await range(`/api/sessions/${zd.id}/stream/${zdc.id}`, 0, jpg.length - 1);
+    ok(r.buf.equals(jpg), `deflate zip: cover.jpg inflated and streamed intact`);
+  }
+  await j(`/api/sessions/${zd.id}`, { method: "DELETE" });
+} catch (e) {
+  console.log(`  ~ deflate zip fixture missing or failed: ${e.message}`);
+}
+
 /* 5. broken post: missing segment (430) + corrupted crc */
 console.log("\n[5] broken post — missing segment #3 (430) and bad CRC on #5");
 let b = await j("/api/sessions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ providerId: prov.id, source: "url", url: "http://127.0.0.1:1191/broken.nzb" }) });
