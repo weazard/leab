@@ -142,7 +142,69 @@ jobs:
           else
             echo "no playback report" >> $GITHUB_STEP_SUMMARY
           fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### browser playback (deterministic media: h264 + aac)" >> $GITHUB_STEP_SUMMARY
+          if [ -f ci-report/playback-media.json ]; then
+            node -e '
+              const r = JSON.parse(require("fs").readFileSync("ci-report/playback-media.json","utf8"));
+              const rows = (r.checks??[]).map(c=>`| ${c.name} | ${c.pass?"✅":"❌"} | ${String(c.detail).slice(0,140)} |`).join("\n");
+              console.log(`browser: ${r.browser ?? "-"}\n\n| check | result | detail |\n|---|---|---|\n${rows}`);
+              for (const f of r.findings??[]) console.log(`- ${f}`);
+              if (r.state) console.log(`\nvideo: ${r.state.videoWidth}x${r.state.videoHeight} duration=${r.state.duration} frames=${r.state.decodedFrames} audioBytes=${r.state.audioDecodedBytes} err=${JSON.stringify(r.state.error)}`);
+              for (const s2 of r.seeks??[]) console.log(`- seek ${s2.toPct}% → t=${s2.landedAt}s recovered=${s2.recovered} stalled=${s2.stalled}`);
+            ' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "no deterministic playback report" >> $GITHUB_STEP_SUMMARY
+          fi
         continue-on-error: true
+
+      - name: real media fixtures (ffmpeg)
+        id: fixtures
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        env:
+          MT: /usr/bin/ffmpeg
+        run: |
+          set -e
+          mkdir -p scripts/fixtures/out/media
+          cd scripts/fixtures/out/media
+          ffmpeg -hide_banner -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 45 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 900k -c:a aac -b:a 96k h264-aac-faststart.mp4
+          ffmpeg -hide_banner -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 45 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 900k -c:a ac3 -b:a 192k h264-ac3.mkv
+          ffmpeg -hide_banner -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 90 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 1200k -c:a aac -b:a 96k h264-aac-moovtail.mp4
+          ls -la
+
+      - name: start media mock (real files as usenet posts)
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: |
+          rm -f /tmp/media-mock.log /tmp/media-session.log /tmp/playback-media.log
+          nohup node scripts/ci/media-mock.mjs --dir scripts/fixtures/out/media --port 1590 --http 1591 --part 700000 --delay-ms 4 --ttl 2400 > /tmp/media-mock.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -sf -o /dev/null -r 0-100 http://127.0.0.1:1591/h264-aac-faststart.mp4.nzb; then echo "media mock up after ${i}"; exit 0; fi
+            sleep 0.5
+          done
+          cat /tmp/media-mock.log
+          exit 1
+
+      - name: "media session (playable: h264 + aac)"
+        id: mediasession
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: REPORT_OUT=ci-report/media-target.json MEDIA_MOCK_PORT=1590 node scripts/ci/media-session.mjs http://127.0.0.1:3000 http://127.0.0.1:1591/h264-aac-faststart.mp4.nzb | tee /tmp/media-session.log
+
+      - name: playback test in a real browser (deterministic media)
+        id: playback-media
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: REPORT_TARGET=ci-report/media-target.json REPORT_OUT=ci-report/playback-media.json node scripts/ci/browser-playback.mjs http://127.0.0.1:3000 | tee /tmp/playback-media.log
+
+      - name: silent-audio detection (h264 + ac3 in mkv)
+        id: ac3check
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: |
+          REPORT_OUT=ci-report/media-target-ac3.json MEDIA_MOCK_PORT=1590 node scripts/ci/media-session.mjs http://127.0.0.1:3000 http://127.0.0.1:1591/h264-ac3.mkv.nzb
+          node -e 'const t=require("./ci-report/media-target-ac3.json"); if(!t.ok) throw new Error("no ac3 session: "+t.error); const silent=t.browserAudio===false; const named=JSON.stringify(t.audio||[]).includes("A_AC3"); const warned=JSON.stringify(t.notes||[]).includes("AC3"); console.log("ac3: browserAudio="+t.browserAudio+" audio="+JSON.stringify(t.audio)+" warned="+warned); if(!silent||!named||!warned) { throw new Error("ac3 file was not flagged as silent"); } console.log("✓ AC3 correctly reported as silent in the browser");'
 
       - name: record step outcomes
         if: always()
@@ -157,6 +219,10 @@ jobs:
             echo "probe:    ${{ steps.probe.outcome }}"
             echo "browsers: ${{ steps.browsers.outcome }}"
             echo "playback: ${{ steps.playback.outcome }}"
+            echo "fixtures: ${{ steps.fixtures.outcome }}"
+            echo "mediasession: ${{ steps.mediasession.outcome }}"
+            echo "playback-media: ${{ steps.playback-media.outcome }}"
+            echo "ac3check: ${{ steps.ac3check.outcome }}"
           } | tee ci-report/status.txt
 
       - name: server log
@@ -171,6 +237,9 @@ jobs:
           cp nzb-live-streaming-platform/ci-report/playback.json ci-report/playback.json 2>/dev/null || true
           cp /tmp/probe.log ci-report/probe.log 2>/dev/null || true
           cp /tmp/playback.log ci-report/playback.log 2>/dev/null || true
+          cp /tmp/playback-media.log ci-report/playback-media.log 2>/dev/null || true
+          cp /tmp/media-session.log ci-report/media-session.log 2>/dev/null || true
+          cp /tmp/media-mock.log ci-report/media-mock.log 2>/dev/null || true
           cp /tmp/build.log ci-report/build.log 2>/dev/null || true
           cp /tmp/install.log ci-report/install.log 2>/dev/null || true
           cp /tmp/next.log ci-report/server.log 2>/dev/null || true

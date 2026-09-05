@@ -164,21 +164,30 @@ function findBox(buf: Uint8Array, type: string): Uint8Array | null {
   }
 }
 
-/** Read the `stsd` sample entries out of a moov box. */
+/**
+ * Read every `stsd` sample entry out of a moov box. A real file has one stsd
+ * per track (video, audio, subtitles) — parsing only the first one is how you
+ * end up telling people their movie has no sound.
+ */
 function parseStsd(moov: Uint8Array): string[] {
-  const idx = td.decode(moov).indexOf("stsd");
-  if (idx < 0) return [];
   const view = new DataView(moov.buffer, moov.byteOffset, moov.byteLength);
-  const count = view.getUint32(idx + 8);
+  const hay = td.decode(moov);
   const out: string[] = [];
-  // stsd is a full box: size(4) + type(4) + version/flags(4) + entry_count(4)
-  let q = idx + 12;
-  for (let i = 0; i < count && q + 8 <= moov.length; i++) {
-    const size = view.getUint32(q);
-    const type = td.decode(moov.subarray(q + 4, q + 8));
-    if (/^(avc1|avc3|hev1|hvc1|vp09|av01|mp4v|mp4a|ac-3|ec-3|Opus|alac|dtsc|dtsh|dtsl|fLaC|tx3g|wvtt|stpp|dvh1|dvhe)$/.test(type)) out.push(type);
-    if (!size || size < 8) break;
-    q += size;
+  let from = 0;
+  for (;;) {
+    const idx = hay.indexOf("stsd", from);
+    if (idx < 0) break;
+    from = idx + 4;
+    const count = view.getUint32(idx + 8);
+    // stsd is a full box: size(4) + type(4) + version/flags(4) + entry_count(4)
+    let q = idx + 12;
+    for (let i = 0; i < count && q + 8 <= moov.length; i++) {
+      const size = view.getUint32(q);
+      const type = td.decode(moov.subarray(q + 4, q + 8));
+      if (/^[a-zA-Z0-9_.-]{4}$/.test(type)) out.push(type);
+      if (!size || size < 8) break;
+      q += size;
+    }
   }
   return uniq(out);
 }

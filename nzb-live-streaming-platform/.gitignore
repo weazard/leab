@@ -43,3 +43,6 @@ next-env.d.ts
 
 # ci reports
 /ci-report/
+
+# generated real-media fixtures (ffmpeg) for the CI playback test
+scripts/fixtures/out/media/
