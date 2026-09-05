@@ -17,6 +17,7 @@ import { parsePar2, parseZip, type Par2Info } from "./zip_par2";
 import { detect, type MediaKind } from "./detect";
 import { segmentCache } from "./cache";
 import { InflatingReader, maxInflateBytes } from "./inflate";
+import { probeCodecs, type CodecInfo } from "./codecs";
 
 export interface MediaItem {
   id: string;
@@ -35,6 +36,8 @@ export interface MediaItem {
   containerName?: string;
   reason?: string;
   crc?: string;
+  /** container + codec probe, when the head of the file could be parsed */
+  codecs?: CodecInfo;
   /** how to rebuild a reader on a fresh instance */
   src: { type: "direct"; file: number } | { type: "chunks"; files: number[]; chunks: ArchiveChunk[] };
 }
@@ -363,6 +366,24 @@ export class StreamSession {
     const rank: Record<MediaKind, number> = { video: 0, audio: 1, image: 2, subtitle: 3, text: 4, pdf: 5, other: 6, archive: 7, par2: 8 };
     items.sort((a, b) => rank[a.kind] - rank[b.kind] || b.size - a.size);
     items.forEach((it, i) => (it.id = `i${i}`));
+
+    // 8. container/codec probe on the media we are actually going to play, so the
+    //    UI can warn about things the browser cannot decode (silent AC3/DTS…)
+    const probeTargets = items.filter((i) => (i.kind === "video" || i.kind === "audio") && i.playable && !i.needsDecompress).slice(0, 3);
+    for (const it of probeTargets) {
+      try {
+        const info = await probeCodecs(this.reader(it), it.size);
+        if (!info) continue;
+        it.codecs = info;
+        this.diag.info("analyze", `codecs for "${it.name}": container=${info.container} video=[${info.video.join(",")}] audio=[${info.audio.join(",")}] browserVideo=${info.browserVideo} browserAudio=${info.browserAudio}${info.moovAtEnd ? " (moov at end)" : ""}`, {
+          item: it.id,
+          ...info,
+        });
+        for (const n of info.notes) this.diag.warn("analyze", `${it.name}: ${n}`);
+      } catch (e) {
+        this.diag.warn("analyze", `codec probe failed for "${it.name}": ${(e as Error).message}`);
+      }
+    }
     this.diag.info("analyze", `analysis done in ${Date.now() - t0}ms: ${items.length} item(s), ${items.filter((i) => i.playable).length} playable`, {
       items: items.map((i) => ({ id: i.id, name: i.name, size: i.size, kind: i.kind, playable: i.playable, container: i.container })),
     });

@@ -62,13 +62,14 @@ jobs:
 
       - name: install
         working-directory: nzb-live-streaming-platform
-        run: npm ci --no-audit --no-fund
+        run: npm ci --no-audit --no-fund 2>&1 | tee /tmp/install.log
 
       - name: build
         working-directory: nzb-live-streaming-platform
-        run: npm run build
+        run: npm run build 2>&1 | tee /tmp/build.log
 
       - name: start server
+        id: server
         working-directory: nzb-live-streaming-platform
         run: |
           (nohup npm run start -- -H 127.0.0.1 -p 3000 > /tmp/next.log 2>&1 &)
@@ -82,11 +83,14 @@ jobs:
 
       - name: probe (live provider + indexer)
         id: probe
+        if: always()
         working-directory: nzb-live-streaming-platform
         run: node scripts/ci/real-e2e.mjs http://127.0.0.1:3000 2>&1 | tee /tmp/probe.log
         continue-on-error: true
 
       - name: install browser for the playback test
+        id: browsers
+        if: always()
         working-directory: nzb-live-streaming-platform
         run: |
           npm i --no-save --no-audit --no-fund playwright@1.49.1 || true
@@ -95,6 +99,7 @@ jobs:
 
       - name: playback test in a real browser
         id: playback
+        if: always()
         working-directory: nzb-live-streaming-platform
         env:
           REPORT_OUT: ci-report/playback.json
@@ -122,9 +127,24 @@ jobs:
           fi
         continue-on-error: true
 
+      - name: record step outcomes
+        if: always()
+        run: |
+          mkdir -p ci-report
+          {
+            echo "job:      ${{ job.status }}"
+            echo "checkout: ${{ steps.checkout.outcome }}"
+            echo "install:  ${{ steps.install.outcome }}"
+            echo "build:    ${{ steps.build.outcome }}"
+            echo "server:   ${{ steps.server.outcome }}"
+            echo "probe:    ${{ steps.probe.outcome }}"
+            echo "browsers: ${{ steps.browsers.outcome }}"
+            echo "playback: ${{ steps.playback.outcome }}"
+          } | tee ci-report/status.txt
+
       - name: server log
         if: always()
-        run: tail -n 200 /tmp/next.log || true
+        run: tail -n 300 /tmp/next.log || true
 
       - name: publish reports to ci/results branch
         if: always()
@@ -134,6 +154,9 @@ jobs:
           cp nzb-live-streaming-platform/ci-report/playback.json ci-report/playback.json 2>/dev/null || true
           cp /tmp/probe.log ci-report/probe.log 2>/dev/null || true
           cp /tmp/playback.log ci-report/playback.log 2>/dev/null || true
+          cp /tmp/build.log ci-report/build.log 2>/dev/null || true
+          cp /tmp/install.log ci-report/install.log 2>/dev/null || true
+          cp /tmp/next.log ci-report/server.log 2>/dev/null || true
           git config user.name "ci-bot"
           git config user.email "ci-bot@users.noreply.github.com"
           git checkout -B ci/results
