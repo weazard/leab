@@ -148,8 +148,14 @@ async function loadSevenZip(diag: Diag): Promise<SevenZipModule> {
       try {
         const { readFile } = await import("node:fs/promises");
         const { createRequire } = await import("node:module");
+        const { dirname, join } = await import("node:path");
         const req = createRequire(import.meta.url);
-        const wasmPath = req.resolve("7z-wasm/7zz.wasm");
+        // Resolve the package's JS entrypoint, then find the sibling WASM file.
+        // Passing the .wasm subpath directly to require.resolve makes Turbopack
+        // treat it as an imported WASM module and synthesize imports from the
+        // module's `env`/WASI namespaces, which are not JavaScript packages.
+        const packageEntry = req.resolve("7z-wasm");
+        const wasmPath = join(dirname(packageEntry), "7zz.wasm");
         const buf = await readFile(wasmPath);
         opts.wasmBinary = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
         diag.debug("archive", `loaded 7zz.wasm (${fmt(buf.length)}) from ${wasmPath}`);
