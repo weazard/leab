@@ -1,0 +1,301 @@
+name: real e2e (live provider)
+
+# Runs the app against a real NNTP provider + newznab indexer on a GitHub
+# runner (full internet, unlike the dev sandbox), then drives the player in a
+# real Chrome to measure what playback actually feels like. The JSON reports are
+# pushed to the `ci/results` branch so they can be read without the Actions API.
+#
+# Credentials below are TEMPORARY test accounts. They can be overridden at any
+# time by adding repository secrets NEWZNAB_API_KEY / NNTP_USER / NNTP_PASS.
+
+on:
+  workflow_dispatch:
+    inputs:
+      query:
+        description: indexer search query
+        default: "Silo S01E01"
+      pick_max_bytes:
+        description: max release size to pick
+        default: "4000000000"
+  push:
+    branches: [arena/01a07384-leab]
+    paths:
+      - .github/workflows/real-e2e.yml
+      - nzb-live-streaming-platform/scripts/ci/**
+      - nzb-live-streaming-platform/src/lib/usenet/**
+      - nzb-live-streaming-platform/src/app/api/sessions/**
+      - nzb-live-streaming-platform/src/components/Player.tsx
+
+concurrency:
+  group: real-e2e
+  # a newer push supersedes the queued run — only the latest code matters, and
+  # each run spends ~10 minutes of real provider bandwidth
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # CI uses a real Postgres instead of the embedded PGlite: PGlite aborts if
+    # anything else ever opened the same data dir, which made the run flaky.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      NEWZNAB_URL: https://api.nzb.life
+      NEWZNAB_API_KEY: ${{ secrets.NEWZNAB_API_KEY || '4672408959beb08e7549291b12882bce' }}
+      PROVIDER_HOST: news.supernews.com
+      PROVIDER_PORT: "563"
+      PROVIDER_SSL: "1"
+      PROVIDER_USER: ${{ secrets.NNTP_USER || 'yspery@gmail.com' }}
+      PROVIDER_PASS: ${{ secrets.NNTP_PASS || 'DadeDa123!' }}
+      PROVIDER_CONNS: "10"
+      SEGMENT_CACHE_MB: "512"
+      MAX_INFLATE_MB: "512"
+      NNTP_TIMEOUT_MS: "30000"
+      SEARCH_QUERY: ${{ github.event.inputs.query || 'Silo S01E01' }}
+      PICK_MAX_BYTES: ${{ github.event.inputs.pick_max_bytes || '4000000000' }}
+      DO_FFPROBE: "1"
+      REPORT_OUT: ci-report/report.json
+      APP_URL: http://127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nzb-live-streaming-platform/package-lock.json
+
+      - name: install
+        working-directory: nzb-live-streaming-platform
+        run: npm ci --no-audit --no-fund 2>&1 | tee /tmp/install.log
+
+      - name: build
+        working-directory: nzb-live-streaming-platform
+        run: npm run build 2>&1 | tee /tmp/build.log
+
+      - name: start server
+        id: server
+        working-directory: nzb-live-streaming-platform
+        run: |
+          (nohup npm run start -- -H 127.0.0.1 -p 3000 > /tmp/next.log 2>&1 &)
+          for i in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:3000/api/health > /dev/null; then
+              echo "server up after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::server did not start"; tail -n 100 /tmp/next.log; exit 1
+
+      - name: probe (live provider + indexer)
+        id: probe
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: |
+          set -o pipefail
+          node scripts/ci/real-e2e.mjs http://127.0.0.1:3000 2>&1 | tee /tmp/probe.log
+        continue-on-error: true
+
+      - name: install browser for the playback test
+        id: browsers
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: |
+          npm i --no-save --no-audit --no-fund playwright@1.49.1 || true
+          npx playwright install chrome || npx playwright install --with-deps chromium || echo "browser install failed"
+        continue-on-error: true
+
+      - name: playback test in a real browser
+        id: playback
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        env:
+          REPORT_OUT: ci-report/playback.json
+        run: |
+          set -o pipefail
+          node scripts/ci/browser-playback.mjs http://127.0.0.1:3000 2>&1 | tee /tmp/playback.log
+        continue-on-error: true
+
+      - name: summaries
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: |
+          echo "### probe" >> $GITHUB_STEP_SUMMARY
+          node scripts/ci/summarize.mjs ci-report/report.json >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### browser playback" >> $GITHUB_STEP_SUMMARY
+          if [ -f ci-report/playback.json ]; then
+            node -e '
+              const r = JSON.parse(require("fs").readFileSync("ci-report/playback.json","utf8"));
+              const rows = (r.checks??[]).map(c=>`| ${c.name} | ${c.pass?"✅":"❌"} | ${String(c.detail).slice(0,140)} |`).join("\n");
+              console.log(`browser: ${r.browser ?? "-"}\n\n| check | result | detail |\n|---|---|---|\n${rows}`);
+              for (const f of r.findings??[]) console.log(`- ${f}`);
+              if (r.state) console.log(`\nvideo: ${r.state.videoWidth}x${r.state.videoHeight} duration=${r.state.duration} frames=${r.state.decodedFrames} audioBytes=${r.state.audioDecodedBytes} err=${JSON.stringify(r.state.error)}`);
+            ' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "no playback report" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### media check (byte-exact ranges + seeks)" >> $GITHUB_STEP_SUMMARY
+          if [ -f ci-report/media-check.json ]; then
+            node -e '
+              const r = JSON.parse(require("fs").readFileSync("ci-report/media-check.json","utf8"));
+              const rows = (r.checks??[]).map(c=>`| ${c.name} | ${c.pass?"✅":"❌"} | ${String(c.detail).slice(0,140)} |`).join("\n");
+              console.log(`| check | result | detail |\n|---|---|---|\n${rows}`);
+            ' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "no media check report" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "### browser playback (deterministic media: h264 + aac)" >> $GITHUB_STEP_SUMMARY
+          if [ -f ci-report/playback-media.json ]; then
+            node -e '
+              const r = JSON.parse(require("fs").readFileSync("ci-report/playback-media.json","utf8"));
+              const rows = (r.checks??[]).map(c=>`| ${c.name} | ${c.pass?"✅":"❌"} | ${String(c.detail).slice(0,140)} |`).join("\n");
+              console.log(`browser: ${r.browser ?? "-"}\n\n| check | result | detail |\n|---|---|---|\n${rows}`);
+              for (const f of r.findings??[]) console.log(`- ${f}`);
+              if (r.state) console.log(`\nvideo: ${r.state.videoWidth}x${r.state.videoHeight} duration=${r.state.duration} frames=${r.state.decodedFrames} audioBytes=${r.state.audioDecodedBytes} err=${JSON.stringify(r.state.error)}`);
+              for (const s2 of r.seeks??[]) console.log(`- seek ${s2.toPct}% → t=${s2.landedAt}s recovered=${s2.recovered} stalled=${s2.stalled}`);
+            ' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "no deterministic playback report" >> $GITHUB_STEP_SUMMARY
+          fi
+        continue-on-error: true
+
+      - name: real media fixtures (ffmpeg)
+        id: fixtures
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: |
+          set -eo pipefail
+          mkdir -p scripts/fixtures/out/media
+          cd scripts/fixtures/out/media
+          : > /tmp/fixtures.log
+          if ! command -v ffmpeg > /dev/null 2>&1; then
+            echo "ffmpeg not on the image — installing" | tee -a /tmp/fixtures.log
+            sudo apt-get update -qq 2>&1 | tail -3 | tee -a /tmp/fixtures.log
+            sudo apt-get install -y -qq ffmpeg 2>&1 | tail -5 | tee -a /tmp/fixtures.log
+          fi
+          ffmpeg -version 2>&1 | head -1 | tee -a /tmp/fixtures.log
+          ffmpeg -hide_banner -nostdin -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 45 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 900k -c:a aac -b:a 96k h264-aac-faststart.mp4 >> /tmp/fixtures.log 2>&1
+          ffmpeg -hide_banner -nostdin -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 45 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 900k -c:a ac3 -b:a 192k h264-ac3.mkv >> /tmp/fixtures.log 2>&1
+          ffmpeg -hide_banner -nostdin -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 90 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 1200k -c:a aac -b:a 96k h264-aac-moovtail.mp4 >> /tmp/fixtures.log 2>&1
+          # the same video inside archives — the other shape real releases come in
+          python3 -c "import zipfile,shutil; shutil.copy('h264-aac-faststart.mp4','h264-aac.mp4'); zipfile.ZipFile('h264-aac-stored.zip','w',zipfile.ZIP_STORED).write('h264-aac-faststart.mp4','h264-aac-faststart.mp4'); zipfile.ZipFile('h264-aac-deflate.zip','w',zipfile.ZIP_DEFLATED).write('h264-aac-faststart.mp4','h264-aac-faststart.mp4'); print('zips ok')" 2>&1 | tee -a /tmp/fixtures.log
+          ls -la | tee -a /tmp/fixtures.log
+
+      - name: start media mock (real files as usenet posts)
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: |
+          rm -f /tmp/media-mock.log /tmp/media-session.log /tmp/playback-media.log
+          nohup node scripts/ci/media-mock.mjs --dir scripts/fixtures/out/media --port 1590 --http 1591 --part 700000 --delay-ms 4 --ttl 2400 > /tmp/media-mock.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -sf -o /dev/null -r 0-100 http://127.0.0.1:1591/h264-aac-faststart.mp4.nzb; then echo "media mock up after ${i}"; exit 0; fi
+            sleep 0.5
+          done
+          cat /tmp/media-mock.log
+          exit 1
+
+      - name: "media session (playable: h264 + aac)"
+        id: mediasession
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: |
+          set -o pipefail
+          REPORT_OUT=ci-report/media-target.json MEDIA_MOCK_PORT=1590 node scripts/ci/media-session.mjs http://127.0.0.1:3000 http://127.0.0.1:1591/h264-aac-faststart.mp4.nzb 2>&1 | tee /tmp/media-session.log
+
+      - name: media check (byte-exact ranges + seeks over real media)
+        id: mediacheck
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: MEDIA_MOCK_PORT=1590 REPORT_OUT=ci-report/media-check.json node scripts/ci/media-check.mjs http://127.0.0.1:3000 http://127.0.0.1:1591
+
+      - name: playback test in a real browser (deterministic media)
+        id: playback-media
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: |
+          set -o pipefail
+          REPORT_TARGET=ci-report/media-target.json REPORT_OUT=ci-report/playback-media.json node scripts/ci/browser-playback.mjs http://127.0.0.1:3000 2>&1 | tee /tmp/playback-media.log
+
+      - name: silent-audio detection (h264 + ac3 in mkv)
+        id: ac3check
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: |
+          REPORT_OUT=ci-report/media-target-ac3.json MEDIA_MOCK_PORT=1590 node scripts/ci/media-session.mjs http://127.0.0.1:3000 http://127.0.0.1:1591/h264-ac3.mkv.nzb
+          node -e 'const t=require("./ci-report/media-target-ac3.json"); if(!t.ok) throw new Error("no ac3 session: "+t.error); const silent=t.browserAudio===false; const named=JSON.stringify(t.audio||[]).includes("A_AC3"); const warned=JSON.stringify(t.notes||[]).includes("AC3"); console.log("ac3: browserAudio="+t.browserAudio+" audio="+JSON.stringify(t.audio)+" warned="+warned); if(!silent||!named||!warned) { throw new Error("ac3 file was not flagged as silent"); } console.log("✓ AC3 correctly reported as silent in the browser");'
+
+      - name: record step outcomes
+        if: always()
+        run: |
+          mkdir -p ci-report
+          {
+            echo "job:      ${{ job.status }}"
+            echo "checkout: ${{ steps.checkout.outcome }}"
+            echo "install:  ${{ steps.install.outcome }}"
+            echo "build:    ${{ steps.build.outcome }}"
+            echo "server:   ${{ steps.server.outcome }}"
+            echo "probe:    ${{ steps.probe.outcome }}"
+            echo "browsers: ${{ steps.browsers.outcome }}"
+            echo "playback: ${{ steps.playback.outcome }}"
+            echo "fixtures: ${{ steps.fixtures.outcome }}"
+            echo "mediasession: ${{ steps.mediasession.outcome }}"
+            echo "mediacheck:   ${{ steps.mediacheck.outcome }}"
+            echo "playback-media: ${{ steps.playback-media.outcome }}"
+            echo "ac3check: ${{ steps.ac3check.outcome }}"
+          } | tee ci-report/status.txt
+
+      - name: server log
+        if: always()
+        run: tail -n 300 /tmp/next.log || true
+
+      - name: publish reports to ci/results branch
+        if: always()
+        run: |
+          mkdir -p ci-report
+          cp nzb-live-streaming-platform/ci-report/report.json ci-report/report.json 2>/dev/null || echo '{"error":"no probe report"}' > ci-report/report.json
+          cp nzb-live-streaming-platform/ci-report/playback.json ci-report/playback.json 2>/dev/null || true
+          cp nzb-live-streaming-platform/ci-report/playback-media.json ci-report/playback-media.json 2>/dev/null || true
+          cp nzb-live-streaming-platform/ci-report/media-check.json ci-report/media-check.json 2>/dev/null || true
+          cp nzb-live-streaming-platform/ci-report/media-target.json ci-report/media-target.json 2>/dev/null || true
+          cp nzb-live-streaming-platform/ci-report/media-target-ac3.json ci-report/media-target-ac3.json 2>/dev/null || true
+          cp nzb-live-streaming-platform/ci-report/target.json ci-report/target.json 2>/dev/null || true
+          cp /tmp/probe.log ci-report/probe.log 2>/dev/null || true
+          cp /tmp/playback.log ci-report/playback.log 2>/dev/null || true
+          cp /tmp/playback-media.log ci-report/playback-media.log 2>/dev/null || true
+          cp /tmp/media-session.log ci-report/media-session.log 2>/dev/null || true
+          cp /tmp/media-mock.log ci-report/media-mock.log 2>/dev/null || true
+          cp /tmp/fixtures.log ci-report/fixtures.log 2>/dev/null || true
+          cp /tmp/build.log ci-report/build.log 2>/dev/null || true
+          cp /tmp/install.log ci-report/install.log 2>/dev/null || true
+          cp /tmp/next.log ci-report/server.log 2>/dev/null || true
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git checkout -B ci/results
+          git add -f ci-report
+          git commit -m "ci: real e2e report ${{ github.run_id }}"
+          git push -f https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git ci/results
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-e2e-reports
+          path: nzb-live-streaming-platform/ci-report/

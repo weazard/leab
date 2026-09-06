@@ -115,7 +115,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("s");
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("s");
+    const wanted = params.get("item");
     if (id) {
       void (async () => {
         setError(null);
@@ -124,7 +126,10 @@ export default function App() {
         try {
           const s = await api<SessionFull>(`/api/sessions/${id}`);
           setSession(s);
-          window.history.replaceState(null, "", `?s=${id}`);
+          // ?s=<id>&item=<itemId> opens a specific file straight in the player
+          const it = wanted ? (s.items ?? []).find((i) => i.id === wanted) : undefined;
+          if (it) setItem(it);
+          window.history.replaceState(null, "", `?s=${id}${it ? `&item=${it.id}` : ""}`);
         } catch (e) {
           setError((e as Error).message);
         } finally {

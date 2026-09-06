@@ -134,21 +134,46 @@ async function handle(req: Request, { params }: Ctx, headOnly: boolean) {
     ac.abort();
     finish("client aborted");
   });
+  const closeQuietly = (controller: ReadableStreamDefaultController<Uint8Array>) => {
+    try {
+      controller.close();
+    } catch {
+      /* already closed by the client going away — expected on every seek */
+    }
+  };
   const body = new ReadableStream<Uint8Array>({
     async pull(controller) {
+      // A <video> element aborts and re-requests on every seek; never touch a
+      // controller that is already gone (that threw "Invalid state: Controller
+      // is already closed" on every single jump).
+      if (finished || ac.signal.aborted) {
+        closeQuietly(controller);
+        return;
+      }
       try {
         const { value, done } = await gen.next();
         if (done) {
-          controller.close();
           finish("completed");
+          closeQuietly(controller);
           return;
         }
         sent += value.length;
-        controller.enqueue(value);
+        try {
+          controller.enqueue(value);
+        } catch {
+          ac.abort();
+          finish("client gone");
+        }
       } catch (e) {
         diag.error("range", `${item.name}: stream error: ${(e as Error).message}`);
-        controller.error(e);
         finish("errored");
+        if (!ac.signal.aborted) {
+          try {
+            controller.error(e);
+          } catch {
+            /* client already gone */
+          }
+        }
       }
     },
     cancel() {

@@ -17,6 +17,9 @@ import { parsePar2, parseZip, type Par2Info } from "./zip_par2";
 import { detect, type MediaKind } from "./detect";
 import { segmentCache } from "./cache";
 import { InflatingReader, maxInflateBytes } from "./inflate";
+import { probeCodecs, type CodecInfo } from "./codecs";
+
+const fmtBytesLocal = (n: number) => (n > 1024 * 1024 ? `${(n / 1048576).toFixed(1)}MB` : `${Math.round(n / 1024)}KB`);
 
 export interface MediaItem {
   id: string;
@@ -35,6 +38,8 @@ export interface MediaItem {
   containerName?: string;
   reason?: string;
   crc?: string;
+  /** container + codec probe, when the head of the file could be parsed */
+  codecs?: CodecInfo;
   /** how to rebuild a reader on a fresh instance */
   src: { type: "direct"; file: number } | { type: "chunks"; files: number[]; chunks: ArchiveChunk[] };
 }
@@ -140,36 +145,119 @@ export class StreamSession {
   private async doAnalyze(): Promise<MediaItem[]> {
     const t0 = Date.now();
     this.diag.info("analyze", `analyzing ${this.files.length} file(s): fetching first segment of each to learn size, real name and type`);
-    // 1. init all files (bounded concurrency)
+
+    // 1. init files (bounded concurrency).
+    //
+    // PAR2 / sfv / nfo volumes are only fetched when we actually need them:
+    // a scene release easily carries 10–40 of them and none of them are the
+    // movie, so probing all of them first means the user waits on round trips
+    // that cannot possibly produce a play button.
     const failed = new Set<number>();
-    let next = 0;
-    const conc = Math.max(1, Math.min(this.providerCfg.connections, 16));
-    await Promise.all(
-      Array.from({ length: conc }, async () => {
-        while (next < this.files.length) {
-          const i = next++;
-          try {
-            await this.files[i].init();
-          } catch (e) {
-            failed.add(i);
-            this.diag.error("analyze", `file#${i} "${this.files[i].resolvedName}" unreadable: ${(e as Error).message}`);
+    const readable = new Set<number>();
+    // Is this an obfuscated post name? Deliberately conservative: a false
+    // positive costs a full PAR2 fetch of dozens of recovery volumes before
+    // anything can play, so `Some_Show_S01E01_1080p_WEB-DL` must stay "not
+    // random" even though it is long and made of url-safe characters.
+    const looksRandom = (n: string) => {
+      const base = n.replace(/\.[A-Za-z0-9]+$/, "");
+      if (/^[a-f0-9]{24,}$/i.test(base)) return true; // md5/sha1-style hash
+      if (!/^[A-Za-z0-9+/=]{24,}$/.test(base)) return false; // separators ⇒ a real name
+      const upper = /[A-Z]/.test(base);
+      const lower = /[a-z]/.test(base);
+      const digits = (base.match(/\d/g) ?? []).length;
+      return (upper && lower && digits >= 3) || !/[aeiouy]/i.test(base);
+    };
+    // PAR2 recovery volumes only: nfo/sfv are single tiny articles and are
+    // worth showing, a par2 set can be 40 articles and is worth nothing here.
+    // Match the raw subject too — nameFromSubject() turns
+    // "…@TSRG.mkv.vol31+17.par2" into "@TSRG.mkv", which hides the extension.
+    const isRecovery = (i: number) => {
+      const f = this.files[i];
+      const hay = `${f.file.subject ?? ""} ${f.resolvedName ?? ""}`;
+      return /\.(par2|srr|md5)(?:[\s"'\]]|$)/i.test(hay);
+    };
+    const bytesOf = (i: number) => this.files[i].file.segments.reduce((a, s) => a + (s.bytes ?? 0), 0);
+
+    const initAll = async (idxs: number[]) => {
+      let next = 0;
+      const conc = Math.max(1, Math.min(this.providerCfg.connections, 16));
+      await Promise.all(
+        Array.from({ length: conc }, async () => {
+          while (next < idxs.length) {
+            const i = idxs[next++];
+            try {
+              await this.files[i].init();
+              readable.add(i);
+            } catch (e) {
+              failed.add(i);
+              this.diag.error("analyze", `file#${i} "${this.files[i].resolvedName}" unreadable: ${(e as Error).message}`);
+            }
           }
+        }),
+      );
+    };
+
+    const all = this.files.map((_, i) => i);
+    const media = all.filter((i) => !isRecovery(i));
+    const recovery = all.filter(isRecovery);
+    // biggest first: that's the episode, and it's what the user is waiting for
+    media.sort((a, b) => bytesOf(b) - bytesOf(a));
+    await initAll(media);
+    const obfuscated = media.filter((i) => readable.has(i) && looksRandom(this.files[i].yencName ?? this.files[i].resolvedName ?? ""));
+    this.diag.info("analyze", `probed ${media.length} media file(s), ${recovery.length} recovery volume(s) deferred${obfuscated.length ? ` — names look obfuscated (${obfuscated.map((i) => this.files[i].resolvedName).slice(0, 2).join(", ")})` : ""}`);
+    if (!readable.size || obfuscated.length) {
+      // Nothing playable, or obfuscated names that PAR2 can resolve.
+      //
+      // Smallest volume first: the .par2 index is a few KB while the recovery
+      // volumes are tens of MB, and the index alone is enough to recover the
+      // real file names. Stop at the first volume that parses.
+      recovery.sort((a, b) => bytesOf(a) - bytesOf(b));
+      for (const i of recovery) {
+        try {
+          await this.files[i].init();
+          readable.add(i);
+        } catch (e) {
+          failed.add(i);
+          this.diag.error("analyze", `file#${i} "${this.files[i].resolvedName}" unreadable: ${(e as Error).message}`);
+          continue;
         }
-      }),
-    );
-    if (failed.size === this.files.length) throw new Error(`No file could be read from the provider (${this.diag.stats.lastError ?? "unknown error"})`);
+        // each field separately — a subject ends with "yEnc (1/2)", so testing
+        // one concatenated string for a trailing ".par2" matches nothing
+        const f = this.files[i];
+        const isPar2 =
+          /\.par2$/i.test(f.yencName ?? "") ||
+          /\.par2$/i.test(f.resolvedName ?? "") ||
+          /\.par2["'\]\s]/.test(f.file.subject ?? "") ||
+          /\.par2$/i.test(f.file.subject ?? "");
+        if (!isPar2) continue;
+        try {
+          this.par2 = await parsePar2(this.files[i], this.diag);
+          this.diag.info("analyze", `PAR2 index recovered from file#${i} (${fmtBytesLocal(bytesOf(i))} encoded) — ${this.par2?.files.length ?? 0} protected file(s)`);
+          break;
+        } catch (e) {
+          this.diag.warn("archive", `PAR2 parse of file#${i} failed: ${(e as Error).message}`);
+        }
+      }
+    } else if (recovery.length) {
+      this.diag.info("analyze", `skipped ${recovery.length} PAR2/sfv/nfo volume(s) — not needed for names (${this.files.length - recovery.length} file(s) probed)`);
+    }
+    if (!readable.size) throw new Error(`No file could be read from the provider (${this.diag.stats.lastError ?? "unknown error"})`);
+    const skippedCount = all.filter((i) => !readable.has(i) && !failed.has(i)).length;
+    if (skippedCount) {
+      this.diag.info("analyze", `${skippedCount} recovery volume(s) left un-probed (names did not need PAR2)`);
+    }
 
     // 2. heads + preliminary detection
     const heads = new Map<number, Uint8Array>();
     for (const f of this.files) {
-      if (failed.has(f.file.index)) continue;
-      const seg = await f.segment(0);
-      heads.set(f.file.index, seg.data.subarray(0, 512));
+      if (!readable.has(f.file.index)) continue;
+      const head = await f.peek(0, 512);
+      heads.set(f.file.index, head);
     }
 
     // 3. PAR2 → real names
-    const par2Candidates = this.files.filter((f) => !failed.has(f.file.index) && detect(f.yencName ?? f.resolvedName, heads.get(f.file.index) ?? null).ext === "par2");
-    if (par2Candidates.length) {
+    const par2Candidates = this.files.filter((f) => readable.has(f.file.index) && detect(f.yencName ?? f.resolvedName, heads.get(f.file.index) ?? null).ext === "par2");
+    if (!this.par2 && par2Candidates.length) {
       const smallest = par2Candidates.reduce((a, b) => (a.size <= b.size ? a : b));
       try {
         this.par2 = await parsePar2(smallest, this.diag);
@@ -177,7 +265,6 @@ export class StreamSession {
         this.diag.warn("archive", `PAR2 parse failed: ${(e as Error).message}`);
       }
     }
-    const looksRandom = (n: string) => /^[a-f0-9]{16,}(\.[a-z0-9]+)?$/i.test(n) || /^[A-Za-z0-9+/=_-]{20,}$/.test(n.replace(/\.[a-z0-9]+$/i, ""));
     const score = (n: string | null | undefined) => {
       if (!n) return -1;
       let s = 0;
@@ -188,12 +275,12 @@ export class StreamSession {
     };
     for (const f of this.files) {
       let parName: string | undefined;
-      if (this.par2 && !failed.has(f.file.index)) {
+      if (this.par2 && readable.has(f.file.index)) {
         const bySize = this.par2.files.filter((p) => p.size === f.size);
         if (bySize.length === 1) parName = bySize[0].name;
         else if (bySize.length > 1) {
           // several candidates with the same size: PAR2 stores the MD5 of the first 16KB
-          const first = (await f.segment(0)).data.subarray(0, 16384);
+          const first = await f.peek(0, 16384);
           const h = await md5hex(first);
           parName = h ? bySize.find((p) => p.md5_16k === h)?.name : undefined;
           if (parName) this.diag.debug("analyze", `file#${f.file.index} matched PAR2 entry "${parName}" by md5-16k`);
@@ -218,7 +305,7 @@ export class StreamSession {
     const rarGroups = new Map<string, Array<{ file: NzbVirtualFile; index: number }>>();
     const zipFiles: NzbVirtualFile[] = [];
     for (const f of this.files) {
-      if (failed.has(f.file.index)) continue;
+      if (!readable.has(f.file.index)) continue;
       const d = detect(f.resolvedName, heads.get(f.file.index) ?? null);
       if (d.ext === "rar") {
         const key = rarVolumeKey(f.resolvedName) ?? rarVolumeKey(f.yencName ?? "") ?? rarVolumeKey(f.file.subjectName);
@@ -264,7 +351,7 @@ export class StreamSession {
       const names = volumes.map((v) => v.resolvedName);
       this.diag.info("archive", `parsing RAR set "${base}" with ${volumes.length} volume(s)`, { volumes: names });
       try {
-        const info = await parseRarSet(volumes, this.diag, Math.min(conc, 8));
+        const info = await parseRarSet(volumes, this.diag, Math.min(Math.max(1, Math.min(this.providerCfg.connections, 16)), 8));
         for (const e of info.entries) {
           const d = detect(e.name, null);
           const mapped = e.chunks.reduce((n, c) => n + c.length, 0);
@@ -363,6 +450,24 @@ export class StreamSession {
     const rank: Record<MediaKind, number> = { video: 0, audio: 1, image: 2, subtitle: 3, text: 4, pdf: 5, other: 6, archive: 7, par2: 8 };
     items.sort((a, b) => rank[a.kind] - rank[b.kind] || b.size - a.size);
     items.forEach((it, i) => (it.id = `i${i}`));
+
+    // 8. container/codec probe on the media we are actually going to play, so the
+    //    UI can warn about things the browser cannot decode (silent AC3/DTS…)
+    const probeTargets = items.filter((i) => (i.kind === "video" || i.kind === "audio") && i.playable && !i.needsDecompress).slice(0, 3);
+    for (const it of probeTargets) {
+      try {
+        const info = await probeCodecs(this.reader(it), it.size);
+        if (!info) continue;
+        it.codecs = info;
+        this.diag.info("analyze", `codecs for "${it.name}": container=${info.container} video=[${info.video.join(",")}] audio=[${info.audio.join(",")}] browserVideo=${info.browserVideo} browserAudio=${info.browserAudio}${info.moovAtEnd ? " (moov at end)" : ""}`, {
+          item: it.id,
+          ...info,
+        });
+        for (const n of info.notes) this.diag.warn("analyze", `${it.name}: ${n}`);
+      } catch (e) {
+        this.diag.warn("analyze", `codec probe failed for "${it.name}": ${(e as Error).message}`);
+      }
+    }
     this.diag.info("analyze", `analysis done in ${Date.now() - t0}ms: ${items.length} item(s), ${items.filter((i) => i.playable).length} playable`, {
       items: items.map((i) => ({ id: i.id, name: i.name, size: i.size, kind: i.kind, playable: i.playable, container: i.container })),
     });

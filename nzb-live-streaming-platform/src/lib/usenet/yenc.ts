@@ -295,3 +295,252 @@ export function encodeYencPart(
   out.set(tail, head.length + bytes.length);
   return out;
 }
+
+/* --------------------------- incremental decoding -------------------------- */
+
+/**
+ * Streaming yEnc decoder.
+ *
+ * The batch `decodeYenc()` needs the *whole* article before it can emit a
+ * single byte. Real releases use part sizes anywhere from 300 KB to 50 MB, so
+ * that turns "start playing" into "download one whole part first" — which is
+ * exactly what makes playback feel like a download. This decoder emits decoded
+ * bytes as the article trickles off the socket, so time-to-first-byte is a
+ * round trip instead of a part.
+ *
+ * Lines are the unit of work (yEnc lines are short), CR/LF are stripped, NNTP
+ * dot-stuffing (".." at the start of a line) is removed and the CRC32 is
+ * accumulated incrementally so the trailer can still be verified.
+ */
+export interface YencStreamMeta {
+  header: YencHeader;
+  /** 0-based inclusive offsets inside the file (from =ypart, when present) */
+  begin: number;
+  end: number;
+  fileSize: number | null;
+  /** exact part length when =ypart declared the range */
+  partSize: number | null;
+  encoding: "yenc" | "uuencode" | "raw";
+}
+
+export interface YencStreamResult {
+  header: YencHeader;
+  begin: number;
+  end: number;
+  fileSize: number | null;
+  declaredCrc: string | null;
+  actualCrc: string;
+  crcOk: boolean | null;
+  declaredSize: number | null;
+  sizeOk: boolean | null;
+  encoding: "yenc" | "uuencode" | "raw";
+  decodedBytes: number;
+}
+
+export class YencStreamDecoder {
+  private pending: Uint8Array = new Uint8Array(0);
+  private state: "head" | "part" | "data" | "done" = "head";
+  private header: Record<string, string> = {};
+  private partHdr: Record<string, string> | null = null;
+  private endHdr: Record<string, string> = {};
+  private crcState = 0xffffffff;
+  private decoded = 0;
+  private skipped = 0;
+  private fallbackChunks: Uint8Array[] | null = null;
+  encoding: "yenc" | "uuencode" | "raw" = "yenc";
+  meta: YencStreamMeta | null = null;
+
+  get decodedBytes() {
+    return this.decoded;
+  }
+
+  /** Feed raw (still dot-stuffed) body bytes; returns decoded pieces. */
+  push(chunk: Uint8Array): Uint8Array[] {
+    if (this.state === "done") return [];
+    let combined: Uint8Array;
+    if (this.pending.length === 0) {
+      combined = chunk;
+    } else {
+      combined = new Uint8Array(this.pending.length + chunk.length);
+      combined.set(this.pending, 0);
+      combined.set(chunk, this.pending.length);
+    }
+    const lines: Uint8Array[] = [];
+    let outLen = 0;
+    let start = 0;
+    while (start < combined.length) {
+      const nl = combined.indexOf(0x0a, start);
+      if (nl < 0) break;
+      let end = nl;
+      if (end > start && combined[end - 1] === 0x0d) end--;
+      const out = this.processLine(combined.subarray(start, end));
+      if (out && out.length) {
+        lines.push(out);
+        outLen += out.length;
+      }
+      start = nl + 1;
+      if ((this.state as string) === "done") {
+        this.pending = new Uint8Array(0);
+        return outLen ? [join(lines, outLen)] : [];
+      }
+    }
+    this.pending = start >= combined.length ? new Uint8Array(0) : combined.subarray(start);
+    // One piece per network chunk: yEnc lines are 128 B and yielding each of
+    // them separately costs more in generator hops than in data.
+    return outLen ? [join(lines, outLen)] : [];
+  }
+
+  private processLine(line: Uint8Array): Uint8Array | null {
+    const s = td.decode(line);
+    if (this.state === "head") {
+      if (s.startsWith("=ybegin ")) {
+        this.header = parseYLine(s.trim());
+        this.state = "part";
+        return null;
+      }
+      if (/^begin \d{3} /.test(s)) {
+        this.encoding = "uuencode";
+        this.startFallback(line);
+        return null;
+      }
+      if (++this.skipped > 3) {
+        this.encoding = "raw";
+        this.startFallback(line);
+      }
+      return null;
+    }
+    if (this.state === "part") {
+      if (s.startsWith("=ypart ")) {
+        this.partHdr = parseYLine(s.trim());
+        this.publishMeta();
+        this.state = "data";
+        return null;
+      }
+      // no =ypart (single-part posts): data starts on this very line
+      this.publishMeta();
+      this.state = "data";
+      // fall through and decode this line
+    }
+    if (this.state === "data") {
+      if (this.encoding !== "yenc") {
+        this.fallbackChunks!.push(line);
+        this.fallbackChunks!.push(new Uint8Array([0x0d, 0x0a]));
+        return null;
+      }
+      if (s.startsWith("=yend ")) {
+        this.endHdr = parseYLine(s.trim());
+        this.state = "done";
+        return null;
+      }
+      return this.decodeLine(line);
+    }
+    return null;
+  }
+
+  private startFallback(firstLine: Uint8Array) {
+    this.fallbackChunks = [firstLine, new Uint8Array([0x0d, 0x0a])];
+    this.state = "data";
+    this.meta = { header: {}, begin: 0, end: 0, fileSize: null, partSize: null, encoding: this.encoding };
+  }
+
+  private publishMeta() {
+    if (this.meta) return;
+    const fileSize = this.header.size ? Number(this.header.size) : null;
+    const begin = this.partHdr?.begin ? Number(this.partHdr.begin) - 1 : 0;
+    const end = this.partHdr?.end ? Number(this.partHdr.end) - 1 : begin;
+    this.meta = {
+      header: {
+        name: this.header.name,
+        size: fileSize ?? undefined,
+        line: this.header.line ? Number(this.header.line) : undefined,
+        part: this.header.part ? Number(this.header.part) : undefined,
+        total: this.header.total ? Number(this.header.total) : undefined,
+        begin: this.partHdr?.begin ? Number(this.partHdr.begin) : undefined,
+        end: this.partHdr?.end ? Number(this.partHdr.end) : undefined,
+      },
+      begin,
+      end,
+      fileSize,
+      partSize: this.partHdr?.begin && this.partHdr?.end ? end - begin + 1 : null,
+      encoding: this.encoding,
+    };
+  }
+
+  private decodeLine(line: Uint8Array): Uint8Array {
+    const out = new Uint8Array(line.length);
+    let o = 0;
+    let atLineStart = true;
+    for (let i = 0; i < line.length; i++) {
+      let b = line[i];
+      if (b === 0x0d || b === 0x0a) continue;
+      if (atLineStart) {
+        atLineStart = false;
+        // NNTP dot-stuffing: a leading ".." is a single "."
+        if (b === 0x2e && line[i + 1] === 0x2e) continue;
+      }
+      if (b === 0x3d) {
+        i++;
+        if (i >= line.length) break;
+        b = (line[i] - 64) & 0xff;
+      }
+      b = (b - 42) & 0xff;
+      out[o++] = b;
+      this.crcState = CRC_TABLE[(this.crcState ^ b) & 0xff] ^ (this.crcState >>> 8);
+      this.decoded++;
+    }
+    return out.subarray(0, o);
+  }
+
+  /** Verify the trailer (or, for non-yEnc bodies, decode the buffered body). */
+  finish(): YencStreamResult {
+    // The NNTP terminator (CRLF.CRLF) swallows the CRLF of the last line, so a
+    // trailing "=yend …" is still sitting in `pending` — parse it or we would
+    // never see the declared CRC and silently skip verification.
+    if (this.pending.length && (this.state as string) !== "done") {
+      const rest = this.pending;
+      this.pending = new Uint8Array(0);
+      this.processLine(rest);
+    }
+    if (this.fallbackChunks) {
+      const total = this.fallbackChunks.reduce((n, c) => n + c.length, 0);
+      const body = new Uint8Array(total);
+      let o = 0;
+      for (const c of this.fallbackChunks) {
+        body.set(c, o);
+        o += c.length;
+      }
+      const r = decodeYenc(body);
+      this.decoded = r.data.length;
+      return { ...r, decodedBytes: r.data.length };
+    }
+    const actualCrc = ((this.crcState ^ 0xffffffff) >>> 0).toString(16).padStart(8, "0");
+    const declaredCrc = (this.endHdr.pcrc32 ?? this.endHdr.crc32 ?? null)?.toLowerCase() ?? null;
+    const declaredSize = this.endHdr.size ? Number(this.endHdr.size) : null;
+    const begin = this.partHdr?.begin ? Number(this.partHdr.begin) - 1 : 0;
+    const end = this.partHdr?.end ? Number(this.partHdr.end) - 1 : begin + this.decoded - 1;
+    return {
+      header: this.meta?.header ?? {},
+      begin,
+      end,
+      fileSize: this.header.size ? Number(this.header.size) : null,
+      declaredCrc,
+      actualCrc,
+      crcOk: declaredCrc ? declaredCrc.replace(/^0+/, "") === actualCrc.replace(/^0+/, "") : null,
+      declaredSize,
+      sizeOk: declaredSize != null ? declaredSize === this.decoded : null,
+      encoding: this.encoding,
+      decodedBytes: this.decoded,
+    };
+  }
+}
+
+function join(parts: Uint8Array[], total: number): Uint8Array {
+  if (parts.length === 1) return parts[0];
+  const out = new Uint8Array(total);
+  let o = 0;
+  for (const p of parts) {
+    out.set(p, o);
+    o += p.length;
+  }
+  return out;
+}

@@ -203,6 +203,76 @@ export class NntpConnection {
     return { raw: body, wireBytes, ms: Date.now() - t0 };
   }
 
+  /**
+   * Fetch an article body as a *stream* of raw chunks, yielded as they arrive
+   * off the socket. Timeouts apply per chunk (not to the whole article), so a
+   * 50 MB part no longer has to finish downloading before the first byte can
+   * be handed to the client.
+   */
+  async *bodyChunks(messageId: string, groups?: string[]): AsyncGenerator<Uint8Array, { wireBytes: number; ms: number }, void> {
+    if (!this.sock) throw new Error("not connected");
+    const t0 = Date.now();
+    const id = messageId.startsWith("<") ? messageId : `<${messageId}>`;
+    await this.sock.write(enc.encode(`BODY ${id}\r\n`));
+    let resp = await withTimeout(this.readResponse(), this.timeout, "BODY response");
+    if (resp.code !== 222 && groups?.length && !this.currentGroup) {
+      // Some providers need a GROUP selected before serving by Message-ID
+      const g = await this.group(groups[0]).catch(() => ({ code: 0, text: "" }));
+      if (g.code === 211) {
+        await this.sock.write(enc.encode(`BODY ${id}\r\n`));
+        resp = await withTimeout(this.readResponse(), this.timeout, "BODY response");
+      }
+    }
+    if (resp.code !== 222) {
+      const permanent = resp.code === 430 || resp.code === 423 || resp.code === 420;
+      throw new NntpError(`${resp.code} ${resp.text}`, resp.code, permanent);
+    }
+
+    let acc: Uint8Array = this.buf;
+    this.buf = new Uint8Array(0);
+    let wireBytes = 0;
+    let emitted = 0;
+    for (;;) {
+      // look for the terminating CRLF.CRLF in what we have
+      let idx = -1;
+      let termLen = 0;
+      if (!emitted && acc.length >= 3 && acc[0] === 0x2e && acc[1] === 0x0d && acc[2] === 0x0a) {
+        idx = 0; // empty body
+        termLen = 3;
+      } else {
+        const i = findTerminator(acc);
+        if (i >= 0) {
+          idx = i;
+          termLen = 5;
+        }
+      }
+      if (idx >= 0) {
+        if (idx > 0) {
+          const tail = acc.subarray(0, idx);
+          yield tail;
+          emitted += tail.length;
+        }
+        // `emitted` covers everything already yielded; idx+termLen is this last slice
+        wireBytes += emitted + idx + termLen;
+        this.buf = acc.subarray(idx + termLen);
+        this.fetched++;
+        this.lastUsed = Date.now();
+        return { wireBytes, ms: Date.now() - t0 };
+      }
+      const keep = 4;
+      if (acc.length > keep) {
+        const upto = acc.length - keep;
+        const chunk = acc.subarray(0, upto);
+        yield chunk;
+        emitted += chunk.length;
+        acc = acc.subarray(upto);
+      }
+      if (!(await this.fill())) throw new NntpError("Connection closed mid-article", 0);
+      acc = acc.length ? concat([acc, this.buf], acc.length + this.buf.length) : this.buf;
+      this.buf = new Uint8Array(0);
+    }
+  }
+
   async quit() {
     try {
       if (this.sock && !this.sock.closed) {
@@ -249,10 +319,19 @@ function findTerminator(buf: Uint8Array): number {
 
 /* ------------------------------------------------------------------------ */
 
+interface Waiter {
+  resolve: (c: NntpConnection) => void;
+  reject: (e: Error) => void;
+  /** higher wins — a seek must not queue behind speculative prefetches */
+  priority: number;
+  seq: number;
+}
+
 export class NntpPool {
   private conns: NntpConnection[] = [];
-  private waiters: Array<(c: NntpConnection) => void> = [];
+  private waiters: Waiter[] = [];
   private closed = false;
+  private seq = 0;
   private idleTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -284,7 +363,7 @@ export class NntpPool {
     }
   }
 
-  private async acquire(): Promise<NntpConnection> {
+  private async acquire(priority = 0): Promise<NntpConnection> {
     if (this.closed) throw new Error("pool closed");
     const free = this.conns.find((c) => !c.busy && c.alive);
     if (free) {
@@ -311,11 +390,37 @@ export class NntpPool {
         throw e;
       }
     }
-    return withTimeout(
-      new Promise<NntpConnection>((res) => this.waiters.push(res)),
-      120000,
-      "waiting for free NNTP connection",
-    );
+    // Queue for the next free connection. The waiter MUST be removed on
+    // timeout: a stale resolver would be handed a connection that nobody
+    // releases any more, which silently drains the pool until every request
+    // blocks (this is what made seeking hang after a few jumps).
+    const waitMs = 120000;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await new Promise<NntpConnection>((resolve, reject) => {
+        const entry: Waiter = { resolve, reject, priority, seq: ++this.seq };
+        this.waiters.push(entry);
+        timer = setTimeout(() => {
+          const i = this.waiters.indexOf(entry);
+          if (i >= 0) this.waiters.splice(i, 1);
+          reject(new Error(`waiting for free NNTP connection timed out after ${waitMs}ms`));
+        }, waitMs);
+      });
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /** Highest priority first, then FIFO. */
+  private takeWaiter(): Waiter | undefined {
+    if (!this.waiters.length) return undefined;
+    let best = 0;
+    for (let i = 1; i < this.waiters.length; i++) {
+      const a = this.waiters[i];
+      const b = this.waiters[best];
+      if (a.priority > b.priority || (a.priority === b.priority && a.seq < b.seq)) best = i;
+    }
+    return this.waiters.splice(best, 1)[0];
   }
 
   private release(c: NntpConnection, broken = false) {
@@ -326,15 +431,17 @@ export class NntpPool {
       this.diag.stats.connectionsOpen = this.conns.length;
       c.busy = false;
       // wake a waiter by letting it create a new connection
-      const w = this.waiters.shift();
-      if (w) void this.acquire().then(w).catch(() => this.waiters.length && this.waiters.shift()?.(c));
+      const w = this.takeWaiter();
+      if (w) {
+        void this.acquire(w.priority).then(w.resolve, w.reject);
+      }
       this.diag.stats.connectionsBusy = this.busy;
       return;
     }
     c.lastUsed = Date.now();
-    const w = this.waiters.shift();
+    const w = this.takeWaiter();
     if (w) {
-      w(c); // stays busy
+      w.resolve(c); // stays busy
       return;
     }
     c.busy = false;
@@ -347,14 +454,15 @@ export class NntpPool {
    */
   async fetchBody(
     messageId: string,
-    opts: { groups?: string[]; attempts?: number; label?: string } = {},
+    opts: { groups?: string[]; attempts?: number; label?: string; priority?: number } = {},
   ): Promise<{ raw: Uint8Array; wireBytes: number; ms: number; connId: number; attempt: number }> {
     const attempts = opts.attempts ?? 3;
+    const priority = opts.priority ?? 0;
     let lastErr: Error | null = null;
     for (let attempt = 1; attempt <= attempts; attempt++) {
       let conn: NntpConnection | null = null;
       try {
-        conn = await this.acquire();
+        conn = await this.acquire(priority);
         try {
           const r = await conn.body(messageId);
           this.release(conn);
@@ -388,6 +496,68 @@ export class NntpPool {
           code: e instanceof NntpError ? e.code : undefined,
           permanent,
         });
+        if (permanent) break;
+        this.diag.stats.segmentsRetried++;
+      }
+    }
+    throw lastErr ?? new Error("fetch failed");
+  }
+
+  /**
+   * Stream an article body chunk by chunk. Retries on transient errors as long
+   * as nothing has been yielded yet; once bytes are flowing the caller owns the
+   * stream (a mid-stream failure is thrown so the reader can zero-fill).
+   *
+   * The connection is always released, including when the caller abandons the
+   * generator (`break` / `return` triggers the generator's finally), which is
+   * what happens on every browser seek.
+   */
+  async *fetchBodyStream(
+    messageId: string,
+    opts: { groups?: string[]; attempts?: number; label?: string; priority?: number } = {},
+  ): AsyncGenerator<Uint8Array, { wireBytes: number; ms: number; connId: number; attempt: number }, void> {
+    const attempts = opts.attempts ?? 3;
+    const priority = opts.priority ?? 0;
+    let lastErr: Error | null = null;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      let conn: NntpConnection | null = null;
+      let started = false;
+      try {
+        conn = await this.acquire(priority);
+        const gen = conn.bodyChunks(messageId, opts.groups);
+        let result: { wireBytes: number; ms: number } | null = null;
+        let released = false;
+        try {
+          for (;;) {
+            const step = await withTimeout(gen.next(), this.cfg.timeoutMs ?? 30000, `BODY stream chunk ${opts.label ?? messageId}`);
+            if (step.done) {
+              result = (step.value as { wireBytes: number; ms: number } | undefined) ?? { wireBytes: 0, ms: 0 };
+              break;
+            }
+            started = true;
+            yield step.value as Uint8Array;
+          }
+        } catch (e) {
+          const err = e as NntpError;
+          const broken = !(err instanceof NntpError) || err.code === 0;
+          this.release(conn, broken);
+          released = true;
+          throw err;
+        } finally {
+          if (!released && conn) this.release(conn);
+          void gen.return(undefined as unknown as { wireBytes: number; ms: number }).catch(() => {});
+        }
+        return { ...result!, connId: conn.id, attempt };
+      } catch (e) {
+        lastErr = e as Error;
+        const permanent = e instanceof NntpError && e.permanent;
+        this.diag.warn("nntp", `${opts.label ?? messageId} stream attempt ${attempt}/${attempts} failed: ${lastErr.message}`, {
+          messageId,
+          attempt,
+          code: e instanceof NntpError ? e.code : undefined,
+          permanent,
+        });
+        if (started) throw lastErr; // can't restart a stream the caller is already consuming
         if (permanent) break;
         this.diag.stats.segmentsRetried++;
       }

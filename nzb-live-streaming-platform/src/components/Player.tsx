@@ -257,6 +257,34 @@ export function Player({ sessionId, item, items, onEvent }: { sessionId: string;
           {!item.needsDecompress && <span>HTTP 206 ranges · usenet live</span>}
         </div>
       )}
+      {item.codecs && (item.codecs.notes.length > 0 || item.codecs.video.length > 0 || item.codecs.audio.length > 0) && (
+        <div className="text-xs rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2 text-zinc-400">
+            <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">{item.codecs.container}</span>
+            {item.codecs.video.map((c) => (
+              <span key={`v-${c}`} className={`px-1.5 py-0.5 rounded ${item.codecs?.browserVideo === false ? "bg-red-950 text-red-200" : "bg-zinc-800 text-zinc-300"}`}>
+                video: {c}
+              </span>
+            ))}
+            {item.codecs.audio.map((c) => (
+              <span key={`a-${c}`} className={`px-1.5 py-0.5 rounded ${item.codecs?.browserAudio === false ? "bg-red-950 text-red-200" : "bg-zinc-800 text-zinc-300"}`}>
+                audio: {c}
+              </span>
+            ))}
+            {item.codecs.moovAtEnd && <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">moov at end</span>}
+            {item.codecs.audio.length > 0 && item.codecs.browserAudio === false && (
+              <a href={`${base}?m3u=1`} className="ml-auto px-2 py-0.5 rounded bg-emerald-800 hover:bg-emerald-700 text-emerald-50">
+                open in VLC for sound
+              </a>
+            )}
+          </div>
+          {item.codecs.notes.map((n, i) => (
+            <div key={i} className="text-amber-300/90">
+              {n}
+            </div>
+          ))}
+        </div>
+      )}
       {err && <div className="text-sm text-red-300 bg-red-950/40 border border-red-900 rounded-lg px-3 py-2">{err}</div>}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="px-2 py-1 rounded bg-zinc-800 text-zinc-300">{item.ext ? item.ext.toUpperCase() : "BIN"}</span>

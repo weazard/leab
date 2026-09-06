@@ -38,7 +38,7 @@ interface NewznabItem {
 export async function newznabSearch(
   cfg: IndexerConfig,
   q: { query?: string; type?: "search" | "tvsearch" | "movie"; cat?: string; imdbid?: string; season?: string; ep?: string; offset?: number; limit?: number },
-): Promise<{ results: SearchResult[]; total: number; url: string }> {
+): Promise<{ results: SearchResult[]; total: number; url: string; raw?: string }> {
   const u = new URL(`${cfg.url}/api`);
   u.searchParams.set("t", q.type ?? "search");
   if (q.query) u.searchParams.set("q", q.query);
@@ -65,6 +65,9 @@ export async function newznabSearch(
     throw new Error(`indexer error ${a.code ?? ""}: ${a.description ?? JSON.stringify(a)}`);
   }
   const channel = (json.channel ?? {}) as Record<string, unknown>;
+  // keep a peek at the payload: debugging a silent "0 results" from a runner
+  // is impossible otherwise (the api key lives in the query string)
+  const raw = text.slice(0, 400);
   const itemsRaw = channel.item;
   const items: NewznabItem[] = Array.isArray(itemsRaw) ? itemsRaw : itemsRaw ? [itemsRaw as NewznabItem] : [];
   const total = Number(((channel.response as Record<string, unknown> | undefined)?.["@attributes"] as Record<string, string> | undefined)?.total ?? items.length);
@@ -87,5 +90,5 @@ export async function newznabSearch(
       details: typeof it.guid === "string" ? it.guid : undefined,
     };
   });
-  return { results, total, url: u.toString().replace(cfg.apiKey, "***") };
+  return { results, total, raw, url: u.toString().replace(cfg.apiKey, "***") };
 }

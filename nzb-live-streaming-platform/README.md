@@ -34,15 +34,25 @@ browser <video>  ──Range──▶  /api/sessions/:id/stream/:item
   stdout). The player waits with a progress bar, then plays from a local blob so seeking works even
   when `moov` is at the end of the file. VLC/download hit the same inflated stream. Capped by
   `MAX_INFLATE_MB` (default 512).
+- **Live streaming** — an article is decoded *while* it downloads: the first byte reaches the
+  `<video>` as soon as the provider sends it, and a request that joins an in-flight part replays what
+  already arrived and then goes live. Seeking into a part you are already downloading no longer waits
+  for the rest of it. Interactive reads outrank speculative look-ahead for a connection, so a jump is
+  never queued behind the prefetch of the position you just left.
 - **Player** — `<video>`/`<audio>`/image/PDF/text viewers with buffering status, keyboard shortcuts
   (space / arrows / f / m), sidecar `.srt` auto-converted to WebVTT, mime override (e.g. serve MKV as
   `video/webm`, which Chrome demuxes), "open in VLC" `.m3u`, direct download.
+- **Codec check** — every playable item is probed for its container and track codecs (Matroska codec
+  IDs, ISO-BMFF `stsd` — including a tail fetch when `moov` is at the end, MPEG-TS, AVI). The player
+  names the tracks and tells you *before* you press play when the browser cannot decode them — e.g.
+  AC3/E-AC3/DTS/TrueHD audio (silent picture; use VLC), HEVC video (needs OS support), AVI.
 - **Diagnostics checkbox** — live SSE feed of *everything*: connection lifecycle, every segment
   (message-id, bytes, ms, connection, attempt, CRC declared vs actual), 430/timeout errors, retries,
   archive header parsing, range requests, zero-filled holes, cache stats, plus a colour-coded
   per-file segment map. Falls back to polling where streaming responses are buffered.
 - **Fault tolerance** — missing articles (430) are zero-filled so playback continues; CRC mismatches
-  are flagged; dead connections are rotated; every socket op is timeout-guarded.
+  are flagged (the trailing `=yend` line of the last article is flushed before verification, so the
+  declared CRC is actually checked); dead connections are rotated; every socket op is timeout-guarded.
 
 ## Run locally
 

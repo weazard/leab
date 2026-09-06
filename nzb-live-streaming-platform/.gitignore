@@ -40,3 +40,9 @@ next-env.d.ts
 /scripts/fixtures/out/demo.release.part1.rar
 /scripts/fixtures/out/zipdeflate.nzb
 /scripts/fixtures/out/zipsrc/cover.jpg
+
+# ci reports
+/ci-report/
+
+# generated real-media fixtures (ffmpeg) for the CI playback test
+scripts/fixtures/out/media/
