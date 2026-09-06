@@ -221,7 +221,15 @@ export class StreamSession {
           this.diag.error("analyze", `file#${i} "${this.files[i].resolvedName}" unreadable: ${(e as Error).message}`);
           continue;
         }
-        if (!/\.par2$/i.test(`${this.files[i].yencName ?? ""} ${this.files[i].resolvedName ?? ""} ${this.files[i].file.subject ?? ""}`)) continue;
+        // each field separately — a subject ends with "yEnc (1/2)", so testing
+        // one concatenated string for a trailing ".par2" matches nothing
+        const f = this.files[i];
+        const isPar2 =
+          /\.par2$/i.test(f.yencName ?? "") ||
+          /\.par2$/i.test(f.resolvedName ?? "") ||
+          /\.par2["'\]\s]/.test(f.file.subject ?? "") ||
+          /\.par2$/i.test(f.file.subject ?? "");
+        if (!isPar2) continue;
         try {
           this.par2 = await parsePar2(this.files[i], this.diag);
           this.diag.info("analyze", `PAR2 index recovered from file#${i} (${fmtBytesLocal(bytesOf(i))} encoded) — ${this.par2?.files.length ?? 0} protected file(s)`);
