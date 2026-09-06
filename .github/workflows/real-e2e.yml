@@ -268,6 +268,11 @@ jobs:
           mkdir -p ci-report
           cp nzb-live-streaming-platform/ci-report/report.json ci-report/report.json 2>/dev/null || echo '{"error":"no probe report"}' > ci-report/report.json
           cp nzb-live-streaming-platform/ci-report/playback.json ci-report/playback.json 2>/dev/null || true
+          cp nzb-live-streaming-platform/ci-report/playback-media.json ci-report/playback-media.json 2>/dev/null || true
+          cp nzb-live-streaming-platform/ci-report/media-check.json ci-report/media-check.json 2>/dev/null || true
+          cp nzb-live-streaming-platform/ci-report/media-target.json ci-report/media-target.json 2>/dev/null || true
+          cp nzb-live-streaming-platform/ci-report/media-target-ac3.json ci-report/media-target-ac3.json 2>/dev/null || true
+          cp nzb-live-streaming-platform/ci-report/target.json ci-report/target.json 2>/dev/null || true
           cp /tmp/probe.log ci-report/probe.log 2>/dev/null || true
           cp /tmp/playback.log ci-report/playback.log 2>/dev/null || true
           cp /tmp/playback-media.log ci-report/playback-media.log 2>/dev/null || true
