@@ -270,13 +270,52 @@ async function main() {
     step("using explicit NZB_URL", { url: process.env.NZB_URL });
   } else {
     step("search indexer", { q: SEARCH_QUERY, cat: SEARCH_CAT });
-    const res = await j(`/api/search?q=${encodeURIComponent(SEARCH_QUERY)}&cat=${SEARCH_CAT}&limit=60`);
-    const items = (res.items ?? []).filter((i) => i.size >= PICK_MIN && i.size <= PICK_MAX && /\.(mkv|mp4|avi|ts)$|\b(x264|x265|h264|hevc)\b/i.test(i.title ?? i.name ?? ""));
-    report.search = {
-      total: (res.items ?? []).length,
-      candidates: items.slice(0, 10).map((i) => ({ title: i.title, size: i.size, sizeHuman: fmt(i.size) })),
-    };
-    log(`  ${(res.items ?? []).length} results, ${items.length} in size window`);
+
+    // Indexers are picky: "Silo S01E01" only matches on some, and the cat
+    // filter silently zeroes out results on others. Try several shapes and
+    // keep the first one that returns anything — the raw response of the first
+    // attempt goes in the report so a dead API key is visible.
+    const bare = SEARCH_QUERY.replace(/\s*[sS]\d{1,2}[eE]\d{1,3}.*$/, "").trim();
+    const ep = /[sS](\d{1,2})[eE](\d{1,3})/.exec(SEARCH_QUERY);
+    const strategies = [
+      { label: `tvsearch q=${bare} s${ep?.[1] ?? 1}e${ep?.[2] ?? 1} cat=${SEARCH_CAT}`, qs: `type=tvsearch&q=${encodeURIComponent(bare)}&season=${ep?.[1] ?? 1}&ep=${ep?.[2] ?? 1}&cat=${SEARCH_CAT}&limit=60` },
+      { label: `tvsearch q=${bare} s${ep?.[1] ?? 1}e${ep?.[2] ?? 1} (no cat)`, qs: `type=tvsearch&q=${encodeURIComponent(bare)}&season=${ep?.[1] ?? 1}&ep=${ep?.[2] ?? 1}&limit=60` },
+      { label: `search q=${SEARCH_QUERY} cat=${SEARCH_CAT}`, qs: `q=${encodeURIComponent(SEARCH_QUERY)}&cat=${SEARCH_CAT}&limit=60` },
+      { label: `search q=${bare}`, qs: `q=${encodeURIComponent(bare)}&limit=100` },
+    ];
+
+    let res = { items: [] };
+    let items = [];
+    report.searchTries = [];
+    for (const st of strategies) {
+      let r;
+      try {
+        r = await j(`/api/search?${st.qs}`);
+      } catch (e) {
+        report.searchTries.push({ ...st, error: String(e.message).slice(0, 300) });
+        log(`  ${st.label} → ${String(e.message).slice(0, 160)}`);
+        continue;
+      }
+      const got = (r.results ?? r.items ?? []).filter((i) => i.size >= PICK_MIN && i.size <= PICK_MAX);
+      report.searchTries.push({ ...st, raw: r.raw ?? undefined, error: r.error, total: (r.results ?? r.items ?? []).length, inWindow: got.length, sample: (r.results ?? r.items ?? []).slice(0, 3).map((i) => i.title) });
+      log(`  ${st.label} → ${(r.results ?? r.items ?? []).length} results, ${got.length} in size window${r.error ? ` (error: ${String(r.error).slice(0, 120)})` : ""}`);
+      if (got.length) {
+        res = r;
+        items = got;
+        report.search = { strategy: st.label, total: (r.results ?? r.items ?? []).length, candidates: got.slice(0, 10).map((i) => ({ title: i.title, size: i.size, sizeHuman: fmt(i.size) })) };
+        break;
+      }
+      if ((res.results ?? []).length === 0) res = r; // keep the last response for the report
+    }
+    if (items.length === 0) {
+      // fall back to anything the indexer returned, whatever its size
+      const any = (res.results ?? res.items ?? []).slice(0, 10);
+      if (any.length) {
+        log("  ! nothing inside the size window — falling back to the smallest result");
+        items = [...(res.results ?? res.items ?? [])].sort((a, b) => (a.size ?? 0) - (b.size ?? 0)).slice(0, 1);
+        report.search = { ...(report.search ?? {}), fellBackOutsideWindow: true };
+      }
+    }
     for (const i of items.slice(0, 10)) log(`    - ${i.title} (${fmt(i.size)})`);
     check("indexer returns candidates", items.length > 0, `${items.length} candidates`);
     if (!items.length) throw new Error("no candidate releases in size window");

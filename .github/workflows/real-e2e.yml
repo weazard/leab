@@ -102,7 +102,9 @@ jobs:
         id: probe
         if: always()
         working-directory: nzb-live-streaming-platform
-        run: node scripts/ci/real-e2e.mjs http://127.0.0.1:3000 2>&1 | tee /tmp/probe.log
+        run: |
+          set -o pipefail
+          node scripts/ci/real-e2e.mjs http://127.0.0.1:3000 2>&1 | tee /tmp/probe.log
         continue-on-error: true
 
       - name: install browser for the playback test
@@ -120,7 +122,9 @@ jobs:
         working-directory: nzb-live-streaming-platform
         env:
           REPORT_OUT: ci-report/playback.json
-        run: node scripts/ci/browser-playback.mjs http://127.0.0.1:3000 2>&1 | tee /tmp/playback.log
+        run: |
+          set -o pipefail
+          node scripts/ci/browser-playback.mjs http://127.0.0.1:3000 2>&1 | tee /tmp/playback.log
         continue-on-error: true
 
       - name: summaries
@@ -173,16 +177,21 @@ jobs:
         id: fixtures
         if: always()
         working-directory: nzb-live-streaming-platform
-        env:
-          MT: /usr/bin/ffmpeg
         run: |
-          set -e
+          set -eo pipefail
           mkdir -p scripts/fixtures/out/media
           cd scripts/fixtures/out/media
-          ffmpeg -hide_banner -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 45 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 900k -c:a aac -b:a 96k h264-aac-faststart.mp4
-          ffmpeg -hide_banner -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 45 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 900k -c:a ac3 -b:a 192k h264-ac3.mkv
-          ffmpeg -hide_banner -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 90 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 1200k -c:a aac -b:a 96k h264-aac-moovtail.mp4
-          ls -la
+          : > /tmp/fixtures.log
+          if ! command -v ffmpeg > /dev/null 2>&1; then
+            echo "ffmpeg not on the image — installing" | tee -a /tmp/fixtures.log
+            sudo apt-get update -qq 2>&1 | tail -3 | tee -a /tmp/fixtures.log
+            sudo apt-get install -y -qq ffmpeg 2>&1 | tail -5 | tee -a /tmp/fixtures.log
+          fi
+          ffmpeg -version 2>&1 | head -1 | tee -a /tmp/fixtures.log
+          ffmpeg -hide_banner -nostdin -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 45 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 900k -c:a aac -b:a 96k h264-aac-faststart.mp4 >> /tmp/fixtures.log 2>&1
+          ffmpeg -hide_banner -nostdin -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 45 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 900k -c:a ac3 -b:a 192k h264-ac3.mkv >> /tmp/fixtures.log 2>&1
+          ffmpeg -hide_banner -nostdin -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 90 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 1200k -c:a aac -b:a 96k h264-aac-moovtail.mp4 >> /tmp/fixtures.log 2>&1
+          ls -la | tee -a /tmp/fixtures.log
 
       - name: start media mock (real files as usenet posts)
         if: always()
@@ -201,7 +210,9 @@ jobs:
         id: mediasession
         if: always()
         working-directory: nzb-live-streaming-platform
-        run: REPORT_OUT=ci-report/media-target.json MEDIA_MOCK_PORT=1590 node scripts/ci/media-session.mjs http://127.0.0.1:3000 http://127.0.0.1:1591/h264-aac-faststart.mp4.nzb | tee /tmp/media-session.log
+        run: |
+          set -o pipefail
+          REPORT_OUT=ci-report/media-target.json MEDIA_MOCK_PORT=1590 node scripts/ci/media-session.mjs http://127.0.0.1:3000 http://127.0.0.1:1591/h264-aac-faststart.mp4.nzb 2>&1 | tee /tmp/media-session.log
 
       - name: media check (byte-exact ranges + seeks over real media)
         id: mediacheck
@@ -213,7 +224,9 @@ jobs:
         id: playback-media
         if: always()
         working-directory: nzb-live-streaming-platform
-        run: REPORT_TARGET=ci-report/media-target.json REPORT_OUT=ci-report/playback-media.json node scripts/ci/browser-playback.mjs http://127.0.0.1:3000 | tee /tmp/playback-media.log
+        run: |
+          set -o pipefail
+          REPORT_TARGET=ci-report/media-target.json REPORT_OUT=ci-report/playback-media.json node scripts/ci/browser-playback.mjs http://127.0.0.1:3000 2>&1 | tee /tmp/playback-media.log
 
       - name: silent-audio detection (h264 + ac3 in mkv)
         id: ac3check
@@ -258,6 +271,7 @@ jobs:
           cp /tmp/playback-media.log ci-report/playback-media.log 2>/dev/null || true
           cp /tmp/media-session.log ci-report/media-session.log 2>/dev/null || true
           cp /tmp/media-mock.log ci-report/media-mock.log 2>/dev/null || true
+          cp /tmp/fixtures.log ci-report/fixtures.log 2>/dev/null || true
           cp /tmp/build.log ci-report/build.log 2>/dev/null || true
           cp /tmp/install.log ci-report/install.log 2>/dev/null || true
           cp /tmp/next.log ci-report/server.log 2>/dev/null || true

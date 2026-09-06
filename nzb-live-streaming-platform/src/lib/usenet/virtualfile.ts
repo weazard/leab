@@ -32,6 +32,9 @@ export type SegState = 0 | 1 | 2 | 3; // none | inflight | ok | error
 /** bytes of every part kept so a late consumer (analyser) can still read the head */
 const HEAD_CAP = 64 * 1024;
 
+/** How many times to re-attempt a part that failed for a transient reason. */
+const MAX_TRANSIENT_RETRIES = 3;
+
 interface LiveHandle {
   index: number;
   /** resolves as soon as the yEnc header of the part has been parsed */
@@ -143,8 +146,34 @@ export class NzbVirtualFile implements RandomReader {
     });
   }
 
+  private failCount = new Map<number, number>();
+
   private cacheKey(i: number) {
     return `${this.sessionId}:${this.file.index}:${i}`;
+  }
+
+  /**
+   * Remember a decoded part. A part that failed transiently (timeout, dead
+   * socket, server hiccup) is deliberately NOT cached so the next request
+   * retries it — caching the zero-fill would freeze a hole into the file for
+   * the rest of the session, and every seek through it would stay broken.
+   * Permanently missing articles (430) stop after `MAX_TRANSIENT_RETRIES`.
+   */
+  private cacheSegment(i: number, seg: CachedSegment, err?: Error) {
+    if (seg.ok) {
+      this.failCount.delete(i);
+      segmentCache.set(this.cacheKey(i), seg);
+      this.diag.stats.cacheBytes = segmentCache.bytes;
+      return;
+    }
+    const code = (err as { code?: number } | null)?.code;
+    const permanent = (err as { permanent?: boolean } | null)?.permanent === true || code === 430 || code === 423 || code === 420;
+    const tries = (this.failCount.get(i) ?? 0) + 1;
+    this.failCount.set(i, tries);
+    if (permanent || tries >= MAX_TRANSIENT_RETRIES) {
+      segmentCache.set(this.cacheKey(i), seg);
+      this.diag.stats.cacheBytes = segmentCache.bytes;
+    }
   }
 
   /** Fetch (or get cached) segment i, decoded. Never rejects for missing articles: returns zero-filled data flagged with error. */
@@ -159,13 +188,7 @@ export class NzbVirtualFile implements RandomReader {
     const running = this.inflight.get(i);
     if (running) return running;
     this.diag.stats.cacheMisses++;
-    const p = this.fetchSegment(i, prio)
-      .then((seg) => {
-        segmentCache.set(key, seg);
-        this.diag.stats.cacheBytes = segmentCache.bytes;
-        return seg;
-      })
-      .finally(() => this.inflight.delete(i));
+    const p = this.fetchSegment(i, prio).finally(() => this.inflight.delete(i));
     this.inflight.set(i, p);
     return p;
   }
@@ -203,9 +226,13 @@ export class NzbVirtualFile implements RandomReader {
         crcOk: y.crcOk,
         encoding: y.encoding,
       });
-      return { ...seg, ok: !crcBad, error: crcBad ? "crc" : undefined };
+      const out = { ...seg, ok: !crcBad, error: crcBad ? "crc" : undefined } as CachedSegment;
+      this.cacheSegment(i, out);
+      return out;
     } catch (e) {
-      return this.zeroFill(i, e as Error);
+      const seg = this.zeroFill(i, e as Error);
+      this.cacheSegment(i, seg, e as Error);
+      return seg;
     }
   }
 
@@ -279,12 +306,7 @@ export class NzbVirtualFile implements RandomReader {
     h.done = fetch;
     this.lives.set(i, h);
     this.inflight.set(i, fetch);
-    void fetch
-      .then((seg) => {
-        segmentCache.set(this.cacheKey(i), seg);
-        this.diag.stats.cacheBytes = segmentCache.bytes;
-      })
-      .catch(() => {})
+    void fetch.catch(() => {})
       .finally(() => {
         h.settled = true;
         this.wakeLive(h);
@@ -363,6 +385,7 @@ export class NzbVirtualFile implements RandomReader {
     } catch (e) {
       publishMeta();
       const seg = this.zeroFill(i, e as Error);
+      this.cacheSegment(i, seg, e as Error);
       h.settled = true;
       this.wakeLive(h);
       return seg;
@@ -401,7 +424,9 @@ export class NzbVirtualFile implements RandomReader {
       crcOk: y.crcOk,
       encoding: y.encoding,
     });
-    return { data, begin, end, fileSize: y.fileSize, ok: !crcBad, error: crcBad ? "crc" : undefined };
+    const out: CachedSegment = { data, begin, end, fileSize: y.fileSize, ok: !crcBad, error: crcBad ? "crc" : undefined };
+    this.cacheSegment(i, out);
+    return out;
   }
 
   /** Append a freshly decoded piece and wake every consumer of this part. */
