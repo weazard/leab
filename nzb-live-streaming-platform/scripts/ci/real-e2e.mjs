@@ -201,7 +201,8 @@ function parseMkvCodecs(buf) {
   const grab = (re) => {
     const set = new Set();
     let m;
-    while ((m = re.exec(s))) set.add(m[1]);
+    // these patterns have no capture group — the whole match is the codec id
+    while ((m = re.exec(s))) set.add(m[0]);
     return [...set];
   };
   out.video = grab(/V_MPEG4\/ISO\/[A-Z0-9]+|V_MPEGH\/ISO\/HEVC|V_VP9|V_AV1|V_MS\/VFW\/WVC1|V_REAL\/[A-Z0-9]+/g);
@@ -458,6 +459,11 @@ async function main() {
   }
   report.codecs = codecs;
   log(`  container=${container} codecs=${JSON.stringify(codecs)}`);
+  // the app's own verdict, for cross-checking the parser above
+  if (item.codecs) {
+    report.appCodecs = item.codecs;
+    log(`  app says: ${item.codecs.container} video=[${item.codecs.video}] audio=[${item.codecs.audio}] browserVideo=${item.codecs.browserVideo} browserAudio=${item.codecs.browserAudio}`);
+  }
   report.playability = assessPlayability(container, codecs, item);
   for (const f of report.playability.notes) log(`  · ${f}`);
 
