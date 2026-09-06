@@ -43,6 +43,20 @@ if (!target?.sessionId) {
 const url = `${APP}/?s=${target.sessionId}${target.itemId ? `&item=${target.itemId}` : ""}`;
 log(`opening ${url}`);
 
+// what the analyser thinks is in this file — lets us tell "the browser can't
+// decode this codec" apart from "the stream is broken"
+let codecs = null;
+try {
+  const sess = await (await fetch(`${APP}/api/sessions/${target.sessionId}`, { signal: AbortSignal.timeout(60000) })).json();
+  codecs = (sess.items ?? []).find((i) => i.id === target.itemId)?.codecs ?? null;
+} catch {
+  /* best effort */
+}
+if (codecs) {
+  report.codecs = codecs;
+  log(`  codecs: ${codecs.container} video=[${codecs.video}] audio=[${codecs.audio}] browserVideo=${codecs.browserVideo} browserAudio=${codecs.browserAudio}`);
+}
+
 let chromiumMod;
 try {
   ({ chromium: chromiumMod } = await import("playwright"));
@@ -155,7 +169,12 @@ if (!hasVideo) {
 
   check("video reaches playing state", playing, `${ttpMs}ms`);
   check("first frame within 60s", playing && ttpMs < 60000, `${ttpMs}ms`);
-  check("video has dimensions", state.videoWidth > 0 && state.videoHeight > 0, `${state.videoWidth}x${state.videoHeight}`);
+  const incompatibleVideo = codecs?.browserVideo === false || (state.decodedFrames === 0 && /hev1|hvc1|V_MPEGH|HEVC/i.test(String(codecs?.video ?? "")));
+  if (incompatibleVideo) {
+    finding(`no video decoded: this browser cannot decode ${codecs.video} (audio still plays) — expected on a headless Linux runner for HEVC/x265`);
+  } else {
+    check("video has dimensions", state.videoWidth > 0 && state.videoHeight > 0, `${state.videoWidth}x${state.videoHeight}`);
+  }
   if (state.error) {
     const msgs = { 1: "aborted", 2: "network error", 3: "decode error (codec not supported)", 4: "source not supported (container/mime rejected)" };
     finding(`media error ${state.error.code}: ${msgs[state.error.code] ?? state.error.message}`);

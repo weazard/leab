@@ -329,9 +329,14 @@ async function main() {
       return av - bv || (a.size ?? 0) - (b.size ?? 0);
     })[0];
     step("picked release", { title: picked.title, size: fmt(picked.size) });
-    // keep the runner-up picks: releases get taken down, and a probe that
-    // dies on the first DMCA'd result tells us nothing about the app
-    picked.more = [...items].filter((i) => i !== picked).slice(0, 5);
+    // keep the runner-up picks in the same preference order: releases get
+    // taken down, and a probe that dies on the first DMCA'd result tells us
+    // nothing about the app
+    picked.more = [...items].sort((a, b) => {
+      const av = h264(a.title) ? 0 : hevc(a.title) ? 1 : 2;
+      const bv = h264(b.title) ? 0 : hevc(b.title) ? 1 : 2;
+      return av - bv || (a.size ?? 0) - (b.size ?? 0);
+    }).filter((i) => i !== picked).slice(0, 5);
     step("picked release", { title: picked.title, size: fmt(picked.size), runners: picked.more.length });
   }
 
