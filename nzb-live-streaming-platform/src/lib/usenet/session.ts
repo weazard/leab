@@ -19,6 +19,8 @@ import { segmentCache } from "./cache";
 import { InflatingReader, maxInflateBytes } from "./inflate";
 import { probeCodecs, type CodecInfo } from "./codecs";
 
+const fmtBytesLocal = (n: number) => (n > 1024 * 1024 ? `${(n / 1048576).toFixed(1)}MB` : `${Math.round(n / 1024)}KB`);
+
 export interface MediaItem {
   id: string;
   name: string;
@@ -204,8 +206,30 @@ export class StreamSession {
     const obfuscated = media.filter((i) => readable.has(i) && looksRandom(this.files[i].yencName ?? this.files[i].resolvedName ?? ""));
     this.diag.info("analyze", `probed ${media.length} media file(s), ${recovery.length} recovery volume(s) deferred${obfuscated.length ? ` — names look obfuscated (${obfuscated.map((i) => this.files[i].resolvedName).slice(0, 2).join(", ")})` : ""}`);
     if (!readable.size || obfuscated.length) {
-      // nothing playable, or obfuscated names that PAR2 can resolve
-      await initAll(recovery);
+      // Nothing playable, or obfuscated names that PAR2 can resolve.
+      //
+      // Smallest volume first: the .par2 index is a few KB while the recovery
+      // volumes are tens of MB, and the index alone is enough to recover the
+      // real file names. Stop at the first volume that parses.
+      recovery.sort((a, b) => bytesOf(a) - bytesOf(b));
+      for (const i of recovery) {
+        try {
+          await this.files[i].init();
+          readable.add(i);
+        } catch (e) {
+          failed.add(i);
+          this.diag.error("analyze", `file#${i} "${this.files[i].resolvedName}" unreadable: ${(e as Error).message}`);
+          continue;
+        }
+        if (!/\.par2$/i.test(`${this.files[i].yencName ?? ""} ${this.files[i].resolvedName ?? ""} ${this.files[i].file.subject ?? ""}`)) continue;
+        try {
+          this.par2 = await parsePar2(this.files[i], this.diag);
+          this.diag.info("analyze", `PAR2 index recovered from file#${i} (${fmtBytesLocal(bytesOf(i))} encoded) — ${this.par2?.files.length ?? 0} protected file(s)`);
+          break;
+        } catch (e) {
+          this.diag.warn("archive", `PAR2 parse of file#${i} failed: ${(e as Error).message}`);
+        }
+      }
     } else if (recovery.length) {
       this.diag.info("analyze", `skipped ${recovery.length} PAR2/sfv/nfo volume(s) — not needed for names (${this.files.length - recovery.length} file(s) probed)`);
     }
@@ -225,7 +249,7 @@ export class StreamSession {
 
     // 3. PAR2 → real names
     const par2Candidates = this.files.filter((f) => readable.has(f.file.index) && detect(f.yencName ?? f.resolvedName, heads.get(f.file.index) ?? null).ext === "par2");
-    if (par2Candidates.length) {
+    if (!this.par2 && par2Candidates.length) {
       const smallest = par2Candidates.reduce((a, b) => (a.size <= b.size ? a : b));
       try {
         this.par2 = await parsePar2(smallest, this.diag);
