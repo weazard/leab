@@ -22,10 +22,15 @@ on:
     paths:
       - .github/workflows/real-e2e.yml
       - nzb-live-streaming-platform/scripts/ci/**
+      - nzb-live-streaming-platform/src/lib/usenet/**
+      - nzb-live-streaming-platform/src/app/api/sessions/**
+      - nzb-live-streaming-platform/src/components/Player.tsx
 
 concurrency:
   group: real-e2e
-  cancel-in-progress: false
+  # a newer push supersedes the queued run — only the latest code matters, and
+  # each run spends ~10 minutes of real provider bandwidth
+  cancel-in-progress: true
 
 permissions:
   contents: write
