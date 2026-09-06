@@ -200,8 +200,11 @@ if (!hasVideo) {
   log(`  12s of playback: +${advanced.toFixed(1)}s of media, ${waits} waiting, ${stalls} stalled, audio bytes decoded: ${audioDelta}`);
   check("playback advances in real time", advanced > 6, `+${advanced.toFixed(1)}s in ${Date.now() - t1}ms`);
   check("no repeated re-buffering", waits <= 3, `${waits} waiting events`);
-  check("audio track is being decoded", audioDelta > 0, `${audioDelta}B decoded — 0 means the browser cannot decode this audio codec (silent playback)`);
-  if (audioDelta === 0) finding("No audio decoded: the release uses an audio codec the browser cannot decode (AC3/DTS/TrueHD) — this is the 'no sound' symptom.");
+  if (codecs?.browserAudio === false) {
+    finding(`No audio decoded: the release uses an audio codec the browser cannot decode (${codecs.audio}) — this is the "no sound" symptom.`);
+  } else {
+    check("audio track is being decoded", audioDelta > 0, `${audioDelta}B decoded — 0 means the browser cannot decode this audio codec (silent playback)`);
+  }
 
   /* seek forward, then back to an already-seen position */
   const seekTo = async (frac, label) => {

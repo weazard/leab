@@ -155,7 +155,13 @@ export class StreamSession {
     const looksRandom = (n: string) => /^[a-f0-9]{16,}(\.[a-z0-9]+)?$/i.test(n) || /^[A-Za-z0-9+/=_-]{20,}$/.test(n.replace(/\.[a-z0-9]+$/i, ""));
     // PAR2 recovery volumes only: nfo/sfv are single tiny articles and are
     // worth showing, a par2 set can be 40 articles and is worth nothing here.
-    const isRecovery = (i: number) => /\.(par2|srr|md5)$/i.test(this.files[i].resolvedName ?? "");
+    // Match the raw subject too — nameFromSubject() turns
+    // "…@TSRG.mkv.vol31+17.par2" into "@TSRG.mkv", which hides the extension.
+    const isRecovery = (i: number) => {
+      const f = this.files[i];
+      const hay = `${f.file.subject ?? ""} ${f.resolvedName ?? ""}`;
+      return /\.(par2|srr|md5)(?:[\s"'\]]|$)/i.test(hay);
+    };
     const bytesOf = (i: number) => this.files[i].file.segments.reduce((a, s) => a + (s.bytes ?? 0), 0);
 
     const initAll = async (idxs: number[]) => {
