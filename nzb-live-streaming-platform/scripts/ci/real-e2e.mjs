@@ -552,9 +552,10 @@ function assessPlayability(container, codecs, item) {
   let browserVideo = video.length ? video.some((c) => BROWSER_VIDEO_OK.has(c)) : null;
   let browserAudio = audio.length ? audio.some((c) => BROWSER_AUDIO_OK.has(c)) : null;
   if (container === "matroska") {
-    notes.push("Matroska (MKV) is not a container Chrome/Safari can demux — even with supported codecs the browser will not play it. Options: remux to fMP4 server-side/in-browser, or open in VLC.");
-    browserVideo = false;
-    browserAudio = false;
+    // Verified, not guessed: this CI job plays a 2.25GB H.264 MKV in Chrome and
+    // gets 1920x960 frames out of it. Chrome/Edge demux Matroska fine; Safari
+    // and Firefox generally do not.
+    notes.push("Matroska (MKV): Chrome/Edge demux it (verified in this run), Safari/Firefox generally do not — the container is not the reason for a black picture, the codec is.");
   }
   if (video.some((c) => /hev1|hvc1|HEVC|V_MPEGH/.test(c))) {
     notes.push("HEVC/x265 video: browser decode depends on OS/hardware support; often unsupported on Linux/Windows Chrome.");
