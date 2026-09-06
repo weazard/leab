@@ -143,6 +143,17 @@ jobs:
             echo "no playback report" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### media check (byte-exact ranges + seeks)" >> $GITHUB_STEP_SUMMARY
+          if [ -f ci-report/media-check.json ]; then
+            node -e '
+              const r = JSON.parse(require("fs").readFileSync("ci-report/media-check.json","utf8"));
+              const rows = (r.checks??[]).map(c=>`| ${c.name} | ${c.pass?"✅":"❌"} | ${String(c.detail).slice(0,140)} |`).join("\n");
+              console.log(`| check | result | detail |\n|---|---|---|\n${rows}`);
+            ' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "no media check report" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "### browser playback (deterministic media: h264 + aac)" >> $GITHUB_STEP_SUMMARY
           if [ -f ci-report/playback-media.json ]; then
             node -e '
@@ -192,6 +203,12 @@ jobs:
         working-directory: nzb-live-streaming-platform
         run: REPORT_OUT=ci-report/media-target.json MEDIA_MOCK_PORT=1590 node scripts/ci/media-session.mjs http://127.0.0.1:3000 http://127.0.0.1:1591/h264-aac-faststart.mp4.nzb | tee /tmp/media-session.log
 
+      - name: media check (byte-exact ranges + seeks over real media)
+        id: mediacheck
+        if: always()
+        working-directory: nzb-live-streaming-platform
+        run: MEDIA_MOCK_PORT=1590 REPORT_OUT=ci-report/media-check.json node scripts/ci/media-check.mjs http://127.0.0.1:3000 http://127.0.0.1:1591
+
       - name: playback test in a real browser (deterministic media)
         id: playback-media
         if: always()
@@ -221,6 +238,7 @@ jobs:
             echo "playback: ${{ steps.playback.outcome }}"
             echo "fixtures: ${{ steps.fixtures.outcome }}"
             echo "mediasession: ${{ steps.mediasession.outcome }}"
+            echo "mediacheck:   ${{ steps.mediacheck.outcome }}"
             echo "playback-media: ${{ steps.playback-media.outcome }}"
             echo "ac3check: ${{ steps.ac3check.outcome }}"
           } | tee ci-report/status.txt
