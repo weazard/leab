@@ -319,8 +319,15 @@ async function main() {
     for (const i of items.slice(0, 10)) log(`    - ${i.title} (${fmt(i.size)})`);
     check("indexer returns candidates", items.length > 0, `${items.length} candidates`);
     if (!items.length) throw new Error("no candidate releases in size window");
-    // pick the smallest playable-looking candidate → fastest to verify
-    picked = items.sort((a, b) => (a.size ?? 0) - (b.size ?? 0))[0];
+    // Prefer H.264: it decodes everywhere, so a browser test on it proves the
+    // pipeline rather than the runner's codec support. Smallest first.
+    const h264 = (t) => /\b(h264|x264|avc)\b/i.test(t ?? "");
+    const hevc = (t) => /\b(hevc|x265|h265)\b/i.test(t ?? "");
+    picked = [...items].sort((a, b) => {
+      const av = h264(a.title) ? 0 : hevc(a.title) ? 1 : 2;
+      const bv = h264(b.title) ? 0 : hevc(b.title) ? 1 : 2;
+      return av - bv || (a.size ?? 0) - (b.size ?? 0);
+    })[0];
     step("picked release", { title: picked.title, size: fmt(picked.size) });
   }
 
@@ -328,7 +335,15 @@ async function main() {
   const created = await j("/api/sessions", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ providerId: prov.id, source: "url", url: picked.link, title: picked.title }),
+    body: JSON.stringify({
+      providerId: prov.id,
+      // prefer the guid: the server then builds the NZB url with its own key
+      // (a guid is an opaque id — anything that looks like a url is not one)
+      source: picked.guid && !/^https?:\/\//i.test(picked.guid) ? "indexer" : "url",
+      guid: picked.guid && !/^https?:\/\//i.test(picked.guid) ? picked.guid : undefined,
+      url: picked.nzbUrl ?? picked.link ?? picked.url,
+      title: picked.title,
+    }),
   });
   step("session created", { id: created.id, files: created.fileCount, total: fmt(created.totalBytes) });
   const sid = created.id;
