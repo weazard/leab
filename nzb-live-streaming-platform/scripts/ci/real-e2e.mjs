@@ -524,6 +524,12 @@ async function main() {
     for (const e of snap.events ?? []) cats[e.cat] = (cats[e.cat] ?? 0) + 1;
     report.diag = { stats: snap.stats, eventCats: cats, sample: (snap.events ?? []).slice(-60).map((e) => `${e.cat}: ${e.msg}`) };
     log(`  diag stats: ${JSON.stringify(snap.stats)}`);
+    const analyzeEvents = (snap.events ?? []).filter((e) => e.cat === "analyze" || e.cat === "archive").map((e) => `${e.level}: ${e.msg.slice(0, 200)}`);
+    if (analyzeEvents.length) {
+      report.analyzeEvents = analyzeEvents;
+      log("  analyze log:");
+      for (const e of analyzeEvents) log(`    - ${e}`);
+    }
     log(`  diag event categories: ${JSON.stringify(cats)}`);
   } catch (e) {
     report.diag = { error: String(e.message ?? e).slice(0, 200) };

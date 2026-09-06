@@ -152,7 +152,19 @@ export class StreamSession {
     // that cannot possibly produce a play button.
     const failed = new Set<number>();
     const readable = new Set<number>();
-    const looksRandom = (n: string) => /^[a-f0-9]{16,}(\.[a-z0-9]+)?$/i.test(n) || /^[A-Za-z0-9+/=_-]{20,}$/.test(n.replace(/\.[a-z0-9]+$/i, ""));
+    // Is this an obfuscated post name? Deliberately conservative: a false
+    // positive costs a full PAR2 fetch of dozens of recovery volumes before
+    // anything can play, so `Some_Show_S01E01_1080p_WEB-DL` must stay "not
+    // random" even though it is long and made of url-safe characters.
+    const looksRandom = (n: string) => {
+      const base = n.replace(/\.[A-Za-z0-9]+$/, "");
+      if (/^[a-f0-9]{24,}$/i.test(base)) return true; // md5/sha1-style hash
+      if (!/^[A-Za-z0-9+/=]{24,}$/.test(base)) return false; // separators ⇒ a real name
+      const upper = /[A-Z]/.test(base);
+      const lower = /[a-z]/.test(base);
+      const digits = (base.match(/\d/g) ?? []).length;
+      return (upper && lower && digits >= 3) || !/[aeiouy]/i.test(base);
+    };
     // PAR2 recovery volumes only: nfo/sfv are single tiny articles and are
     // worth showing, a par2 set can be 40 articles and is worth nothing here.
     // Match the raw subject too — nameFromSubject() turns
@@ -189,7 +201,9 @@ export class StreamSession {
     // biggest first: that's the episode, and it's what the user is waiting for
     media.sort((a, b) => bytesOf(b) - bytesOf(a));
     await initAll(media);
-    if (!readable.size || media.some((i) => readable.has(i) && looksRandom(this.files[i].yencName ?? this.files[i].resolvedName ?? ""))) {
+    const obfuscated = media.filter((i) => readable.has(i) && looksRandom(this.files[i].yencName ?? this.files[i].resolvedName ?? ""));
+    this.diag.info("analyze", `probed ${media.length} media file(s), ${recovery.length} recovery volume(s) deferred${obfuscated.length ? ` — names look obfuscated (${obfuscated.map((i) => this.files[i].resolvedName).slice(0, 2).join(", ")})` : ""}`);
+    if (!readable.size || obfuscated.length) {
       // nothing playable, or obfuscated names that PAR2 can resolve
       await initAll(recovery);
     } else if (recovery.length) {
