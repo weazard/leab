@@ -1,0 +1,20 @@
+opening http://127.0.0.1:3000/?s=6ee7db97-6946-4d1e-8dd1-310130d39009&item=i0
+  codecs: mp4 video=[avc1] audio=[mp4a] browserVideo=true browserAudio=true
+  browser: google-chrome (has H.264/AAC)
+  time to playing: 158ms  (readyState=4 duration=45 854x480)
+  decoded: 7 frames, audio=4681B video=31195B
+  events: loadeddata,canplay,playing,canplaythrough
+  ✓ video reaches playing state — 158ms
+  ✓ first frame within 60s — 158ms
+  ✓ video has dimensions — 854x480
+  12s of playback: +12.0s of media, 0 waiting, 0 stalled, audio bytes decoded: 144339
+  ✓ playback advances in real time — +12.0s in 12003ms
+  ✓ no repeated re-buffering — 0 waiting events
+  ✓ audio track is being decoded — 144339B decoded — 0 means the browser cannot decode this audio codec (silent playback)
+  seek forward to 40% → 18s: recovered in 307ms (paused=false err=null rs=4)
+  ✓ seek forward to 40% recovers — 307ms
+  seek back to an already-played position → 2s: recovered in 304ms (paused=false err=null rs=4)
+  ✓ seek back to an already-played position recovers — 304ms
+  seek forward to 75% → 34s: recovered in 302ms (paused=false err=null rs=4)
+  ✓ seek forward to 75% recovers — 302ms
+report → ci-report/playback-media.json

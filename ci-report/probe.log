@@ -1,0 +1,77 @@
+
+### health 
+  ✓ app responds — {"ok":true}
+
+### create provider {"host":"news.supernews.com","port":563}
+  ✓ NNTP provider connects + auths — {}
+
+### search indexer {"q":"Silo S01E01","cat":"5040"}
+  tvsearch q=Silo s01e01 cat=5040 → 44 results, 18 in size window
+    - Silo.S01E01.Freedom.Day.1080p.WebRip.Opus.5.1.x265-Lootera.mkv-xpost (1.19GB)
+    - Silo.2023.S01E01.Freedom.Day.1080p.WEB-DL.H264.Atmos.tsrg (2.78GB)
+    - Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos TSRG (2.78GB)
+    - Silo.S01E01.Freedom.Day.1080p.AMZN.WEB-DL.DDP5.1.SDR.H.264-GRiMM.mkv-xpost (3.44GB)
+    - Silo.S01E01.Freedom.Day.1080p.AMZN.WEB-DL.DDP5.1.SDR.H.265-GRiMM (1.04GB)
+    - Silo.S01E01.Freedom.Day.EAC3.5.1.1080p.WEBRip.x265-iVy [nKwX26sziu]-xpost (1.40GB)
+    - Silo.S01E01.Freedom.Day.1080p.HEVC.x265-MeGusta[TGx]-xpost (527.2MB)
+    - Silo.S01E01.Freedom.Day.720p.ATVP.WEB-DL.DDP5.1.H.264-NTb[TGx]-xpost (1.55GB)
+    - Silo.S01E01.1080p.x265-ZMNT.mkv-xpost (722.4MB)
+    - Silo.S01E01.720p.HEVC.x265-MeGusta[eztv.re].mkv-xpost (476.4MB)
+  ✓ indexer returns candidates — 18 candidates
+
+### picked release {"title":"Silo.S01E01.Freedom.Day.720p.ATVP.WEBRip.DDP5.1.x264-NTb","size":"1.63GB"}
+
+### picked release {"title":"Silo.S01E01.Freedom.Day.720p.ATVP.WEBRip.DDP5.1.x264-NTb","size":"1.63GB","runners":5}
+  ✗ Silo.S01E01.Freedom.Day.720p.ATVP.WEBRip.DDP5.1.x264-NTb — 24 files, 0 playable video(s) (No file could be read from the provider (file#23 "Silo.S01E01.Freedom.Day.720p.ATVP.WEBRip.DDP5.1.x264-NTb.vol31-53.par2)
+  ✗ Silo.S01E01.720p.WEB.h264-EDITH — 26 files, 0 playable video(s) (No file could be read from the provider (file#7 "Silo.S01E01.720p.WEB.h264-EDITH.vol31-53.par2" unreadable: 430 no such )
+  ✓ Silo.2023.S01E01.Freedom.Day.1080p.WEB-DL.H264.Atmos.tsrg — 8 files, 1 playable video(s)
+
+### session created {"id":"4eb8cc36-c016-4527-bc6b-010852258184","files":8,"total":"2.70GB","release":"Silo.2023.S01E01.Freedom.Day.1080p.WEB-DL.H264.Atmos.tsrg"}
+
+### analysis done {"items":2,"ms":14674}
+    • Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv — 2.25GB video/mkv container=direct method=- needsDecompress=false playable=true mime=video/webm
+    • Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv.par2 — 5.2KB par2/par2 container=direct method=- needsDecompress=false playable=false mime=application/x-par2 (PAR2 recovery data (parsed for file names; on-the-fly repair not supported))
+
+### probing video item {"name":"Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv","size":"2.25GB","container":"direct"}
+  ✓ HEAD advertises ranges — {"status":200,"acceptRanges":"bytes","contentLength":"2411056607","contentType":"video/webm"}
+  ✓ HEAD content-length == item size — 2411056607 vs 2411056607
+  first 1MB: status=206 ttfb=5ms total=10ms 1.0MB (209715 KB/s)
+  ✓ range 0-1MB returns 206 — 206
+  ✓ first byte arrives < 15s (feels live) — ttfb=5ms
+  container=matroska codecs={"video":["V_MPEG4/ISO/AVC"],"audio":["A_EAC3"],"subs":["S_TEXT/UTF8"],"container":"matroska"}
+  app says: matroska video=[V_MPEG4/ISO/AVC] audio=[A_EAC3] browserVideo=true browserAudio=false
+  · Matroska (MKV): Chrome/Edge demux it (verified in this run), Safari/Firefox generally do not — the container is not the reason for a black picture, the codec is.
+  · AC3/E-AC3/DTS/TrueHD audio: browsers cannot decode this — playback will be silent (matches the 'no sound' report).
+  seek 25%: status=206 ttfb=579ms total=596ms
+  ✓ seek to 25% returns 206 — 206
+  ✓ seek to 25% TTFB < 20s — ttfb=579ms
+  seek 50%: status=206 ttfb=317ms total=439ms
+  ✓ seek to 50% returns 206 — 206
+  ✓ seek to 50% TTFB < 20s — ttfb=317ms
+  seek 75%: status=206 ttfb=319ms total=346ms
+  ✓ seek to 75% returns 206 — 206
+  ✓ seek to 75% TTFB < 20s — ttfb=319ms
+  open-ended from 50%: status=206 ttfb=67ms got=2.0MB
+  ✓ open-ended range starts < 20s — ttfb=67ms
+  ✓ open-ended range is 206 with content-range — 206 bytes 1205528303-2411056606/2411056607
+  ✓ repeated range is byte-identical — 83e7195045641095 vs 83e7195045641095 (2nd ttfb=51ms, cached should be ~0)
+  ✓ out-of-range → 416 — 416
+  ffprobe head: {"error":"spawnSync ffprobe ENOENT"}
+  ffprobe tail: {"error":"spawnSync ffprobe ENOENT"}
+  diag stats: {"connectionsOpen":9,"connectionsBusy":0,"connectionsOpenedTotal":9,"segmentsOk":101,"segmentsFailed":0,"segmentsRetried":0,"crcErrors":0,"bytesDownloaded":74722077,"bytesDecoded":71426715,"bytesServed":45324561,"cacheHits":0,"cacheMisses":101,"cacheBytes":71426715,"activeStreams":0,"startedAt":1788657759024,"lastActivity":1788657765516,"poolSize":9,"poolBusy":0}
+  analyze log:
+    - info: analyzing 8 file(s): fetching first segment of each to learn size, real name and type
+    - info: probed 1 media file(s), 7 recovery volume(s) deferred — names look obfuscated (Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv)
+    - info: PAR2 index parsed: 1 protected file(s), slice=10000000B, recovery blocks in this file=0
+    - info: PAR2 index recovered from file#6 (6KB encoded) — 1 protected file(s)
+    - info: 6 recovery volume(s) left un-probed (names did not need PAR2)
+    - info: codecs for "Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv": container=matroska video=[V_MPEG4/ISO/AVC] audio=[A_EAC3] browserVideo=true browserAudio=false
+    - warn: Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv: Playable video, unsupported audio: expect a silent picture in the browser.
+    - warn: Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv: Matroska (MKV) playback support varies: Chrome/Edge demux it, Safari and Firefox generally do not.
+    - warn: Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv: Dolby Digital (AC3/E-AC3) audio: browsers cannot decode it — you will get video with no sound. Use VLC/mpv, or open the stream URL th
+    - info: analysis done in 2047ms: 2 item(s), 1 playable
+  diag event categories: {"session":1,"analyze":9,"nntp":18,"segment":103,"archive":1,"range":21}
+
+=== 17/17 checks passed ===
+
+report → ci-report/report.json

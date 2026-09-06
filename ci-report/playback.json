@@ -1,0 +1,222 @@
+{
+  "app": "http://127.0.0.1:3000",
+  "startedAt": "2026-09-06T01:23:07.980Z",
+  "checks": [
+    {
+      "name": "video reaches playing state",
+      "pass": true,
+      "detail": "138ms"
+    },
+    {
+      "name": "first frame within 60s",
+      "pass": true,
+      "detail": "138ms"
+    },
+    {
+      "name": "video has dimensions",
+      "pass": true,
+      "detail": "1920x960"
+    },
+    {
+      "name": "playback advances in real time",
+      "pass": true,
+      "detail": "+12.0s in 12004ms"
+    },
+    {
+      "name": "no repeated re-buffering",
+      "pass": true,
+      "detail": "1 waiting events"
+    },
+    {
+      "name": "seek forward to 40% recovers",
+      "pass": true,
+      "detail": "906ms"
+    },
+    {
+      "name": "seek back to an already-played position recovers",
+      "pass": true,
+      "detail": "302ms"
+    },
+    {
+      "name": "seek forward to 75% recovers",
+      "pass": true,
+      "detail": "903ms"
+    }
+  ],
+  "findings": [
+    "No audio decoded: the release uses an audio codec the browser cannot decode (A_EAC3) — this is the \"no sound\" symptom."
+  ],
+  "error": null,
+  "codecs": {
+    "container": "matroska",
+    "video": [
+      "V_MPEG4/ISO/AVC"
+    ],
+    "audio": [
+      "A_EAC3"
+    ],
+    "subtitles": [
+      "S_TEXT/UTF8"
+    ],
+    "browserVideo": true,
+    "browserAudio": false,
+    "notes": [
+      "Playable video, unsupported audio: expect a silent picture in the browser.",
+      "Matroska (MKV) playback support varies: Chrome/Edge demux it, Safari and Firefox generally do not.",
+      "Dolby Digital (AC3/E-AC3) audio: browsers cannot decode it — you will get video with no sound. Use VLC/mpv, or open the stream URL there."
+    ]
+  },
+  "browser": "google-chrome (has H.264/AAC)",
+  "state": {
+    "readyState": 4,
+    "networkState": 1,
+    "currentTime": 0.065901,
+    "duration": 3563.776,
+    "paused": false,
+    "videoWidth": 1920,
+    "videoHeight": 960,
+    "error": null,
+    "decodedFrames": 6,
+    "droppedFrames": 0,
+    "audioDecodedBytes": 0,
+    "videoDecodedBytes": 2432,
+    "buffered": {
+      "start": 0,
+      "end": 2.419
+    },
+    "src": "ttp://127.0.0.1:3000/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0",
+    "events": [
+      {
+        "name": "loadedmetadata",
+        "t": 40,
+        "ct": 0
+      },
+      {
+        "name": "waiting",
+        "t": 41,
+        "ct": 0
+      },
+      {
+        "name": "suspend",
+        "t": 84,
+        "ct": 0.009525
+      },
+      {
+        "name": "loadeddata",
+        "t": 84,
+        "ct": 0.009751
+      },
+      {
+        "name": "canplay",
+        "t": 84,
+        "ct": 0.009808
+      },
+      {
+        "name": "playing",
+        "t": 84,
+        "ct": 0.010041
+      },
+      {
+        "name": "canplaythrough",
+        "t": 85,
+        "ct": 0.010507
+      }
+    ]
+  },
+  "timeToPlayingMs": 138,
+  "seeks": [
+    {
+      "label": "forward to 40%",
+      "target": 1425.5104000000001,
+      "ok": true,
+      "ms": 906,
+      "currentTime": 1425.725369,
+      "paused": false,
+      "error": null,
+      "readyState": 4,
+      "buffered": {
+        "end": 1438.801
+      }
+    },
+    {
+      "label": "back to an already-played position",
+      "target": 178.18880000000001,
+      "ok": true,
+      "ms": 302,
+      "currentTime": 178.215085,
+      "paused": false,
+      "error": null,
+      "readyState": 4,
+      "buffered": {
+        "end": 1438.801
+      }
+    },
+    {
+      "label": "forward to 75%",
+      "target": 2672.832,
+      "ok": true,
+      "ms": 903,
+      "currentTime": 2672.912574,
+      "paused": false,
+      "error": null,
+      "readyState": 4,
+      "buffered": {
+        "end": 2743.045
+      }
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failedRequests": [
+    "http://127.0.0.1:3000/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0 net::ERR_ABORTED",
+    "http://127.0.0.1:3000/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0 net::ERR_ABORTED",
+    "http://127.0.0.1:3000/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0 net::ERR_ABORTED",
+    "http://127.0.0.1:3000/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0 net::ERR_ABORTED",
+    "http://127.0.0.1:3000/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0 net::ERR_ABORTED",
+    "http://127.0.0.1:3000/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0 net::ERR_ABORTED"
+  ],
+  "mediaResponses": [
+    {
+      "url": "/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0",
+      "status": 206,
+      "headers": "video/webm"
+    },
+    {
+      "url": "/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0",
+      "status": 206,
+      "headers": "video/webm"
+    },
+    {
+      "url": "/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0",
+      "status": 206,
+      "headers": "video/webm"
+    },
+    {
+      "url": "/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0",
+      "status": 206,
+      "headers": "video/webm"
+    },
+    {
+      "url": "/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0",
+      "status": 206,
+      "headers": "video/webm"
+    },
+    {
+      "url": "/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0",
+      "status": 206,
+      "headers": "video/webm"
+    },
+    {
+      "url": "/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0",
+      "status": 206,
+      "headers": "video/webm"
+    },
+    {
+      "url": "/api/sessions/4eb8cc36-c016-4527-bc6b-010852258184/stream/i0",
+      "status": 206,
+      "headers": "video/webm"
+    }
+  ],
+  "finishedAt": "2026-09-06T01:23:23.507Z"
+}

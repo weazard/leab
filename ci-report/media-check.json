@@ -1,0 +1,437 @@
+{
+  "app": "http://127.0.0.1:3000",
+  "mock": "http://127.0.0.1:1591",
+  "startedAt": "2026-09-06T01:23:51.758Z",
+  "files": [
+    {
+      "name": "h264-aac-deflate.zip",
+      "size": 5627852,
+      "codecs": null,
+      "ranges": [
+        {
+          "off": 0,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 1753501,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 2828229,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 3507003,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 5590921,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        }
+      ],
+      "seek": {
+        "off": 4525166,
+        "ttfb": 3,
+        "bytes": 65536,
+        "exact": true
+      }
+    },
+    {
+      "name": "h264-aac-faststart.mp4",
+      "size": 5656458,
+      "codecs": {
+        "container": "mp4",
+        "video": [
+          "avc1"
+        ],
+        "audio": [
+          "mp4a"
+        ],
+        "subtitles": [],
+        "browserVideo": true,
+        "browserAudio": true,
+        "moovAtEnd": true,
+        "notes": []
+      },
+      "ranges": [
+        {
+          "off": 0,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 1753501,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 2828229,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 3507003,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 5590921,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        }
+      ],
+      "seek": {
+        "off": 4525166,
+        "ttfb": 4,
+        "bytes": 65536,
+        "exact": true
+      }
+    },
+    {
+      "name": "h264-aac-moovtail.mp4",
+      "size": 14691204,
+      "codecs": {
+        "container": "mp4",
+        "video": [
+          "avc1"
+        ],
+        "audio": [
+          "mp4a"
+        ],
+        "subtitles": [],
+        "browserVideo": true,
+        "browserAudio": true,
+        "moovAtEnd": true,
+        "notes": []
+      },
+      "ranges": [
+        {
+          "off": 0,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 4554273,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 7345602,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 9108546,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 14625667,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        }
+      ],
+      "seek": {
+        "off": 11752963,
+        "ttfb": 5,
+        "bytes": 63488,
+        "exact": true
+      }
+    },
+    {
+      "name": "h264-aac-stored.zip",
+      "size": 5656600,
+      "codecs": {
+        "container": "mp4",
+        "video": [
+          "avc1"
+        ],
+        "audio": [
+          "mp4a"
+        ],
+        "subtitles": [],
+        "browserVideo": true,
+        "browserAudio": true,
+        "moovAtEnd": true,
+        "notes": []
+      },
+      "ranges": [
+        {
+          "off": 0,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 1753501,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 2828229,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 3507003,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 5590921,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        }
+      ],
+      "seek": {
+        "off": 4525166,
+        "ttfb": 3,
+        "bytes": 65536,
+        "exact": true
+      }
+    },
+    {
+      "name": "h264-aac.mp4",
+      "size": 5656458,
+      "codecs": {
+        "container": "mp4",
+        "video": [
+          "avc1"
+        ],
+        "audio": [
+          "mp4a"
+        ],
+        "subtitles": [],
+        "browserVideo": true,
+        "browserAudio": true,
+        "moovAtEnd": true,
+        "notes": []
+      },
+      "ranges": [
+        {
+          "off": 0,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 1753501,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 2828229,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 3507003,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 5590921,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        }
+      ],
+      "seek": {
+        "off": 4525166,
+        "ttfb": 3,
+        "bytes": 63488,
+        "exact": true
+      }
+    },
+    {
+      "name": "h264-ac3.mkv",
+      "size": 6165022,
+      "codecs": {
+        "container": "matroska",
+        "video": [
+          "V_MPEG4/ISO/AVC"
+        ],
+        "audio": [
+          "A_AC3"
+        ],
+        "subtitles": [],
+        "browserVideo": true,
+        "browserAudio": false,
+        "notes": [
+          "Playable video, unsupported audio: expect a silent picture in the browser.",
+          "Matroska (MKV) playback support varies: Chrome/Edge demux it, Safari and Firefox generally do not.",
+          "Dolby Digital (AC3/E-AC3) audio: browsers cannot decode it — you will get video with no sound. Use VLC/mpv, or open the stream URL there."
+        ]
+      },
+      "ranges": [
+        {
+          "off": 0,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 1911156,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 3082511,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 3822313,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        },
+        {
+          "off": 6099485,
+          "status": 206,
+          "bytes": 65536,
+          "exact": true
+        }
+      ],
+      "seek": {
+        "off": 4932017,
+        "ttfb": 3,
+        "bytes": 63488,
+        "exact": true
+      }
+    }
+  ],
+  "checks": [
+    {
+      "name": "h264-aac-deflate.zip: size matches source",
+      "pass": true,
+      "detail": "5656458 vs 5656458"
+    },
+    {
+      "name": "h264-aac-deflate.zip: 5 ranges byte-exact",
+      "pass": true,
+      "detail": "0:ok 1753501:ok 2828229:ok 3507003:ok 5590921:ok"
+    },
+    {
+      "name": "h264-aac-deflate.zip: seek to 80% after abort returns exact bytes",
+      "pass": true,
+      "detail": "ttfb=3ms 65536B"
+    },
+    {
+      "name": "h264-aac-faststart.mp4: size matches source",
+      "pass": true,
+      "detail": "5656458 vs 5656458"
+    },
+    {
+      "name": "h264-aac-faststart.mp4: 5 ranges byte-exact",
+      "pass": true,
+      "detail": "0:ok 1753501:ok 2828229:ok 3507003:ok 5590921:ok"
+    },
+    {
+      "name": "h264-aac-faststart.mp4: seek to 80% after abort returns exact bytes",
+      "pass": true,
+      "detail": "ttfb=4ms 65536B"
+    },
+    {
+      "name": "h264-aac-moovtail.mp4: size matches source",
+      "pass": true,
+      "detail": "14691204 vs 14691204"
+    },
+    {
+      "name": "h264-aac-moovtail.mp4: 5 ranges byte-exact",
+      "pass": true,
+      "detail": "0:ok 4554273:ok 7345602:ok 9108546:ok 14625667:ok"
+    },
+    {
+      "name": "h264-aac-moovtail.mp4: seek to 80% after abort returns exact bytes",
+      "pass": true,
+      "detail": "ttfb=5ms 63488B"
+    },
+    {
+      "name": "h264-aac-stored.zip: size matches source",
+      "pass": true,
+      "detail": "5656458 vs 5656458"
+    },
+    {
+      "name": "h264-aac-stored.zip: 5 ranges byte-exact",
+      "pass": true,
+      "detail": "0:ok 1753501:ok 2828229:ok 3507003:ok 5590921:ok"
+    },
+    {
+      "name": "h264-aac-stored.zip: seek to 80% after abort returns exact bytes",
+      "pass": true,
+      "detail": "ttfb=3ms 65536B"
+    },
+    {
+      "name": "h264-aac.mp4: size matches source",
+      "pass": true,
+      "detail": "5656458 vs 5656458"
+    },
+    {
+      "name": "h264-aac.mp4: 5 ranges byte-exact",
+      "pass": true,
+      "detail": "0:ok 1753501:ok 2828229:ok 3507003:ok 5590921:ok"
+    },
+    {
+      "name": "h264-aac.mp4: seek to 80% after abort returns exact bytes",
+      "pass": true,
+      "detail": "ttfb=3ms 63488B"
+    },
+    {
+      "name": "h264-ac3.mkv: size matches source",
+      "pass": true,
+      "detail": "6165022 vs 6165022"
+    },
+    {
+      "name": "h264-ac3.mkv: 5 ranges byte-exact",
+      "pass": true,
+      "detail": "0:ok 1911156:ok 3082511:ok 3822313:ok 6099485:ok"
+    },
+    {
+      "name": "h264-ac3.mkv: seek to 80% after abort returns exact bytes",
+      "pass": true,
+      "detail": "ttfb=3ms 63488B"
+    },
+    {
+      "name": "h264-ac3.mkv: browser-incompatible audio is flagged",
+      "pass": true,
+      "detail": "audio=[A_AC3]"
+    },
+    {
+      "name": "h264-aac-faststart.mp4: browser-playable audio is not flagged",
+      "pass": true,
+      "detail": "audio=[mp4a]"
+    }
+  ],
+  "error": null,
+  "failed": 0
+}

@@ -1,0 +1,17 @@
+ffmpeg not on the image — installing
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers
+zips ok
+total 42452
+drwxr-xr-x 2 runner runner     4096 Sep  6 01:23 .
+drwxr-xr-x 4 runner runner     4096 Sep  6 01:23 ..
+-rw-r--r-- 1 runner runner  5627852 Sep  6 01:23 h264-aac-deflate.zip
+-rw-r--r-- 1 runner runner  5656458 Sep  6 01:23 h264-aac-faststart.mp4
+-rw-r--r-- 1 runner runner 14691204 Sep  6 01:23 h264-aac-moovtail.mp4
+-rw-r--r-- 1 runner runner  5656600 Sep  6 01:23 h264-aac-stored.zip
+-rw-r--r-- 1 runner runner  5656458 Sep  6 01:23 h264-aac.mp4
+-rw-r--r-- 1 runner runner  6165022 Sep  6 01:23 h264-ac3.mkv

@@ -1,0 +1,30 @@
+{
+  "ok": true,
+  "sessionId": "7444e908-2f86-45c5-af40-4e1031b9c0f4",
+  "itemId": "i0",
+  "name": "h264-ac3.mkv",
+  "size": 6165022,
+  "mime": "video/x-matroska",
+  "container": "matroska",
+  "video": [
+    "V_MPEG4/ISO/AVC"
+  ],
+  "audio": [
+    "A_AC3"
+  ],
+  "browserAudio": false,
+  "browserVideo": true,
+  "notes": [
+    "Playable video, unsupported audio: expect a silent picture in the browser.",
+    "Matroska (MKV) playback support varies: Chrome/Edge demux it, Safari and Firefox generally do not.",
+    "Dolby Digital (AC3/E-AC3) audio: browsers cannot decode it — you will get video with no sound. Use VLC/mpv, or open the stream URL there."
+  ],
+  "items": [
+    {
+      "id": "i0",
+      "name": "h264-ac3.mkv",
+      "size": 6165022,
+      "mime": "video/x-matroska"
+    }
+  ]
+}

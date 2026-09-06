@@ -1,0 +1,20 @@
+opening http://127.0.0.1:3000/?s=4eb8cc36-c016-4527-bc6b-010852258184&item=i0
+  codecs: matroska video=[V_MPEG4/ISO/AVC] audio=[A_EAC3] browserVideo=true browserAudio=false
+  browser: google-chrome (has H.264/AAC)
+  time to playing: 138ms  (readyState=4 duration=3563.776 1920x960)
+  decoded: 6 frames, audio=0B video=2432B
+  events: loadedmetadata,waiting,suspend,loadeddata,canplay,playing,canplaythrough
+  ✓ video reaches playing state — 138ms
+  ✓ first frame within 60s — 138ms
+  ✓ video has dimensions — 1920x960
+  12s of playback: +12.0s of media, 1 waiting, 0 stalled, audio bytes decoded: 0
+  ✓ playback advances in real time — +12.0s in 12004ms
+  ✓ no repeated re-buffering — 1 waiting events
+  ! No audio decoded: the release uses an audio codec the browser cannot decode (A_EAC3) — this is the "no sound" symptom.
+  seek forward to 40% → 1426s: recovered in 906ms (paused=false err=null rs=4)
+  ✓ seek forward to 40% recovers — 906ms
+  seek back to an already-played position → 178s: recovered in 302ms (paused=false err=null rs=4)
+  ✓ seek back to an already-played position recovers — 302ms
+  seek forward to 75% → 2673s: recovered in 903ms (paused=false err=null rs=4)
+  ✓ seek forward to 75% recovers — 903ms
+report → ci-report/playback.json

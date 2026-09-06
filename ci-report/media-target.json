@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "sessionId": "6ee7db97-6946-4d1e-8dd1-310130d39009",
+  "itemId": "i0",
+  "name": "h264-aac-faststart.mp4",
+  "size": 5656458,
+  "mime": "video/mp4",
+  "container": "mp4",
+  "video": [
+    "avc1"
+  ],
+  "audio": [
+    "mp4a"
+  ],
+  "browserAudio": true,
+  "browserVideo": true,
+  "moovAtEnd": true,
+  "notes": [],
+  "items": [
+    {
+      "id": "i0",
+      "name": "h264-aac-faststart.mp4",
+      "size": 5656458,
+      "mime": "video/mp4"
+    }
+  ]
+}

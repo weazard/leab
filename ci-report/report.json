@@ -1,0 +1,534 @@
+{
+  "startedAt": "2026-09-06T01:22:27.366Z",
+  "app": "http://127.0.0.1:3000",
+  "provider": {
+    "name": "supernews",
+    "host": "news.supernews.com",
+    "port": 563,
+    "ssl": true,
+    "username": "yspery@gmail.com",
+    "password": "***",
+    "connections": 10
+  },
+  "steps": [
+    {
+      "at": "2026-09-06T01:22:27.367Z",
+      "name": "health"
+    },
+    {
+      "at": "2026-09-06T01:22:27.413Z",
+      "name": "create provider",
+      "host": "news.supernews.com",
+      "port": 563
+    },
+    {
+      "at": "2026-09-06T01:22:27.862Z",
+      "name": "search indexer",
+      "q": "Silo S01E01",
+      "cat": "5040"
+    },
+    {
+      "at": "2026-09-06T01:22:28.022Z",
+      "name": "picked release",
+      "title": "Silo.S01E01.Freedom.Day.720p.ATVP.WEBRip.DDP5.1.x264-NTb",
+      "size": "1.63GB"
+    },
+    {
+      "at": "2026-09-06T01:22:28.022Z",
+      "name": "picked release",
+      "title": "Silo.S01E01.Freedom.Day.720p.ATVP.WEBRip.DDP5.1.x264-NTb",
+      "size": "1.63GB",
+      "runners": 5
+    },
+    {
+      "at": "2026-09-06T01:22:42.040Z",
+      "name": "session created",
+      "id": "4eb8cc36-c016-4527-bc6b-010852258184",
+      "files": 8,
+      "total": "2.70GB",
+      "release": "Silo.2023.S01E01.Freedom.Day.1080p.WEB-DL.H264.Atmos.tsrg"
+    },
+    {
+      "at": "2026-09-06T01:22:42.040Z",
+      "name": "analysis done",
+      "items": 2,
+      "ms": 14674
+    },
+    {
+      "at": "2026-09-06T01:22:42.041Z",
+      "name": "Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv",
+      "size": "2.25GB",
+      "container": "direct"
+    }
+  ],
+  "checks": [
+    {
+      "name": "app responds",
+      "pass": true,
+      "detail": "{\"ok\":true}"
+    },
+    {
+      "name": "NNTP provider connects + auths",
+      "pass": true,
+      "detail": "{}"
+    },
+    {
+      "name": "indexer returns candidates",
+      "pass": true,
+      "detail": "18 candidates"
+    },
+    {
+      "name": "HEAD advertises ranges",
+      "pass": true,
+      "detail": "{\"status\":200,\"acceptRanges\":\"bytes\",\"contentLength\":\"2411056607\",\"contentType\":\"video/webm\"}"
+    },
+    {
+      "name": "HEAD content-length == item size",
+      "pass": true,
+      "detail": "2411056607 vs 2411056607"
+    },
+    {
+      "name": "range 0-1MB returns 206",
+      "pass": true,
+      "detail": "206"
+    },
+    {
+      "name": "first byte arrives < 15s (feels live)",
+      "pass": true,
+      "detail": "ttfb=5ms"
+    },
+    {
+      "name": "seek to 25% returns 206",
+      "pass": true,
+      "detail": "206"
+    },
+    {
+      "name": "seek to 25% TTFB < 20s",
+      "pass": true,
+      "detail": "ttfb=579ms"
+    },
+    {
+      "name": "seek to 50% returns 206",
+      "pass": true,
+      "detail": "206"
+    },
+    {
+      "name": "seek to 50% TTFB < 20s",
+      "pass": true,
+      "detail": "ttfb=317ms"
+    },
+    {
+      "name": "seek to 75% returns 206",
+      "pass": true,
+      "detail": "206"
+    },
+    {
+      "name": "seek to 75% TTFB < 20s",
+      "pass": true,
+      "detail": "ttfb=319ms"
+    },
+    {
+      "name": "open-ended range starts < 20s",
+      "pass": true,
+      "detail": "ttfb=67ms"
+    },
+    {
+      "name": "open-ended range is 206 with content-range",
+      "pass": true,
+      "detail": "206 bytes 1205528303-2411056606/2411056607"
+    },
+    {
+      "name": "repeated range is byte-identical",
+      "pass": true,
+      "detail": "83e7195045641095 vs 83e7195045641095 (2nd ttfb=51ms, cached should be ~0)"
+    },
+    {
+      "name": "out-of-range → 416",
+      "pass": true,
+      "detail": "416"
+    }
+  ],
+  "findings": [],
+  "error": null,
+  "providerId": 1,
+  "providerTest": {
+    "ok": true
+  },
+  "searchTries": [
+    {
+      "label": "tvsearch q=Silo s01e01 cat=5040",
+      "qs": "type=tvsearch&q=Silo&season=01&ep=01&cat=5040&limit=60",
+      "raw": "{\"@attributes\":{\"version\":\"2.0\"},\"channel\":{\"title\":\"Nzb.su\",\"description\":\"API Feed\",\"link\":\"https:\\/\\/api.nzb.life\\/\",\"language\":\"en-gb\",\"webMaster\":\"root@nzb.su (NZB.su)\",\"category\":{},\"image\":{\"url\":\"https:\\/\\/api.nzb.life\\/templates\\/default\\/images\\/banner.jpg\",\"title\":\"NZB.su\",\"link\":\"https:\\/\\/api.nzb.life\\/\",\"description\":\"Visit NZB.su - \"},\"response\":{\"@attributes\":{\"offset\":\"0\",\"total\":",
+      "total": 44,
+      "inWindow": 18,
+      "sample": [
+        "Silo.S01E01.Freedom.Day.1080p.WebRip.Opus.5.1.x265-Lootera.mkv-xpost",
+        "Silo.2023.S01E01.Freedom.Day.1080p.ATV.WEB-DL.MULTi.DDP5.1.Atmos.H.264-FUZEER",
+        "Silo.2023.S01E01.Freedom.Day.720p.ATV.WEB-DL.MULTi.DDP5.1.Atmos.H.264-FUZEER"
+      ]
+    }
+  ],
+  "search": {
+    "strategy": "tvsearch q=Silo s01e01 cat=5040",
+    "total": 44,
+    "candidates": [
+      {
+        "title": "Silo.S01E01.Freedom.Day.1080p.WebRip.Opus.5.1.x265-Lootera.mkv-xpost",
+        "size": 1278756780,
+        "sizeHuman": "1.19GB"
+      },
+      {
+        "title": "Silo.2023.S01E01.Freedom.Day.1080p.WEB-DL.H264.Atmos.tsrg",
+        "size": 2983099950,
+        "sizeHuman": "2.78GB"
+      },
+      {
+        "title": "Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos TSRG",
+        "size": 2983099950,
+        "sizeHuman": "2.78GB"
+      },
+      {
+        "title": "Silo.S01E01.Freedom.Day.1080p.AMZN.WEB-DL.DDP5.1.SDR.H.264-GRiMM.mkv-xpost",
+        "size": 3692367435,
+        "sizeHuman": "3.44GB"
+      },
+      {
+        "title": "Silo.S01E01.Freedom.Day.1080p.AMZN.WEB-DL.DDP5.1.SDR.H.265-GRiMM",
+        "size": 1116543622,
+        "sizeHuman": "1.04GB"
+      },
+      {
+        "title": "Silo.S01E01.Freedom.Day.EAC3.5.1.1080p.WEBRip.x265-iVy [nKwX26sziu]-xpost",
+        "size": 1507859089,
+        "sizeHuman": "1.40GB"
+      },
+      {
+        "title": "Silo.S01E01.Freedom.Day.1080p.HEVC.x265-MeGusta[TGx]-xpost",
+        "size": 552765825,
+        "sizeHuman": "527.2MB"
+      },
+      {
+        "title": "Silo.S01E01.Freedom.Day.720p.ATVP.WEB-DL.DDP5.1.H.264-NTb[TGx]-xpost",
+        "size": 1660839249,
+        "sizeHuman": "1.55GB"
+      },
+      {
+        "title": "Silo.S01E01.1080p.x265-ZMNT.mkv-xpost",
+        "size": 757446661,
+        "sizeHuman": "722.4MB"
+      },
+      {
+        "title": "Silo.S01E01.720p.HEVC.x265-MeGusta[eztv.re].mkv-xpost",
+        "size": 499524468,
+        "sizeHuman": "476.4MB"
+      }
+    ]
+  },
+  "picks": [
+    {
+      "title": "Silo.S01E01.Freedom.Day.720p.ATVP.WEBRip.DDP5.1.x264-NTb",
+      "size": 1744883889,
+      "id": "373a1ec1-bd14-41a3-9093-bc72352a4daa",
+      "files": 24,
+      "analysed": false,
+      "error": "No file could be read from the provider (file#23 \"Silo.S01E01.Freedom.Day.720p.ATVP.WEBRip.DDP5.1.x264-NTb.vol31-53.par2\" unreadable: 430 no such article)",
+      "videos": 0
+    },
+    {
+      "title": "Silo.S01E01.720p.WEB.h264-EDITH",
+      "size": 1747037162,
+      "id": "c26dc213-5757-41f4-8095-843691b18a83",
+      "files": 26,
+      "analysed": false,
+      "error": "No file could be read from the provider (file#7 \"Silo.S01E01.720p.WEB.h264-EDITH.vol31-53.par2\" unreadable: 430 no such article)",
+      "videos": 0
+    },
+    {
+      "title": "Silo.2023.S01E01.Freedom.Day.1080p.WEB-DL.H264.Atmos.tsrg",
+      "size": 2983099950,
+      "id": "4eb8cc36-c016-4527-bc6b-010852258184",
+      "files": 8,
+      "analysed": true,
+      "videos": 1
+    }
+  ],
+  "sessionId": "4eb8cc36-c016-4527-bc6b-010852258184",
+  "items": [
+    {
+      "name": "Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv",
+      "size": 2411056607,
+      "kind": "video",
+      "ext": "mkv",
+      "mime": "video/x-matroska",
+      "browserMime": "video/webm",
+      "container": "direct",
+      "playable": true
+    },
+    {
+      "name": "Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv.par2",
+      "size": 5308,
+      "kind": "par2",
+      "ext": "par2",
+      "mime": "application/x-par2",
+      "browserMime": "application/x-par2",
+      "container": "direct",
+      "playable": false,
+      "reason": "PAR2 recovery data (parsed for file names; on-the-fly repair not supported)"
+    }
+  ],
+  "head": {
+    "status": 200,
+    "acceptRanges": "bytes",
+    "contentLength": "2411056607",
+    "contentType": "video/webm"
+  },
+  "firstRange": {
+    "range": "bytes=0-1048575",
+    "status": 206,
+    "contentRange": "bytes 0-1048575/2411056607",
+    "contentLength": 1048576,
+    "contentType": "video/webm",
+    "headMs": 4,
+    "ttfbMs": 5,
+    "totalMs": 10,
+    "bytes": 1048576,
+    "kbps": 209715,
+    "sha": "786167360c70f200"
+  },
+  "codecs": {
+    "video": [
+      "V_MPEG4/ISO/AVC"
+    ],
+    "audio": [
+      "A_EAC3"
+    ],
+    "subs": [
+      "S_TEXT/UTF8"
+    ],
+    "container": "matroska"
+  },
+  "appCodecs": {
+    "container": "matroska",
+    "video": [
+      "V_MPEG4/ISO/AVC"
+    ],
+    "audio": [
+      "A_EAC3"
+    ],
+    "subtitles": [
+      "S_TEXT/UTF8"
+    ],
+    "browserVideo": true,
+    "browserAudio": false,
+    "notes": [
+      "Playable video, unsupported audio: expect a silent picture in the browser.",
+      "Matroska (MKV) playback support varies: Chrome/Edge demux it, Safari and Firefox generally do not.",
+      "Dolby Digital (AC3/E-AC3) audio: browsers cannot decode it — you will get video with no sound. Use VLC/mpv, or open the stream URL there."
+    ]
+  },
+  "playability": {
+    "container": "matroska",
+    "video": [
+      "V_MPEG4/ISO/AVC"
+    ],
+    "audio": [
+      "A_EAC3"
+    ],
+    "browserVideo": true,
+    "browserAudio": false,
+    "notes": [
+      "Matroska (MKV): Chrome/Edge demux it (verified in this run), Safari/Firefox generally do not — the container is not the reason for a black picture, the codec is.",
+      "AC3/E-AC3/DTS/TrueHD audio: browsers cannot decode this — playback will be silent (matches the 'no sound' report)."
+    ]
+  },
+  "seeks": [
+    {
+      "frac": 0.25,
+      "offset": 602764151,
+      "range": "bytes=602764151-603288438",
+      "status": 206,
+      "contentRange": "bytes 602764151-603288438/2411056607",
+      "contentLength": 524288,
+      "contentType": "video/webm",
+      "headMs": 579,
+      "ttfbMs": 579,
+      "totalMs": 596,
+      "bytes": 524288,
+      "kbps": 30840,
+      "sha": "60233174d27c77de"
+    },
+    {
+      "frac": 0.5,
+      "offset": 1205528303,
+      "range": "bytes=1205528303-1206052590",
+      "status": 206,
+      "contentRange": "bytes 1205528303-1206052590/2411056607",
+      "contentLength": 524288,
+      "contentType": "video/webm",
+      "headMs": 317,
+      "ttfbMs": 317,
+      "totalMs": 439,
+      "bytes": 524288,
+      "kbps": 4297,
+      "sha": "8dc8e310d5fb369a"
+    },
+    {
+      "frac": 0.75,
+      "offset": 1808292455,
+      "range": "bytes=1808292455-1808816742",
+      "status": 206,
+      "contentRange": "bytes 1808292455-1808816742/2411056607",
+      "contentLength": 524288,
+      "contentType": "video/webm",
+      "headMs": 318,
+      "ttfbMs": 319,
+      "totalMs": 346,
+      "bytes": 524288,
+      "kbps": 19418,
+      "sha": "a39966ed36d38643"
+    }
+  ],
+  "openEnded": {
+    "range": "bytes=1205528303-",
+    "status": 206,
+    "contentRange": "bytes 1205528303-2411056606/2411056607",
+    "contentLength": 1205528304,
+    "contentType": "video/webm",
+    "headMs": 67,
+    "ttfbMs": 67,
+    "totalMs": 73,
+    "bytes": 2100179,
+    "kbps": 350030,
+    "sha": "7302fbfdc75d1bf2"
+  },
+  "cacheCoherence": {
+    "sha1": "83e7195045641095",
+    "sha2": "83e7195045641095",
+    "ttfb1": 352,
+    "ttfb2": 51
+  },
+  "oor": {
+    "status": 416,
+    "contentRange": "bytes */2411056607"
+  },
+  "ffprobe": {
+    "head": {
+      "error": "spawnSync ffprobe ENOENT"
+    },
+    "tail": {
+      "error": "spawnSync ffprobe ENOENT"
+    }
+  },
+  "diag": {
+    "stats": {
+      "connectionsOpen": 9,
+      "connectionsBusy": 0,
+      "connectionsOpenedTotal": 9,
+      "segmentsOk": 101,
+      "segmentsFailed": 0,
+      "segmentsRetried": 0,
+      "crcErrors": 0,
+      "bytesDownloaded": 74722077,
+      "bytesDecoded": 71426715,
+      "bytesServed": 45324561,
+      "cacheHits": 0,
+      "cacheMisses": 101,
+      "cacheBytes": 71426715,
+      "activeStreams": 0,
+      "startedAt": 1788657759024,
+      "lastActivity": 1788657765516,
+      "poolSize": 9,
+      "poolBusy": 0
+    },
+    "eventCats": {
+      "session": 1,
+      "analyze": 9,
+      "nntp": 18,
+      "segment": 103,
+      "archive": 1,
+      "range": 21
+    },
+    "sample": [
+      "range: client aborted Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv: sent 4.2MB of 1.12GB in 253ms (16.7MB/s)",
+      "segment: file#7 seg 1692/3364 ok 716800B in 263ms (streamed)",
+      "segment: file#7 seg 1114/3364 ok 716800B in 146ms (streamed)",
+      "segment: file#7 seg 1116/3364 ok 716800B in 176ms (streamed)",
+      "segment: file#7 seg 1112/3364 ok 716800B in 207ms (streamed)",
+      "range: completed Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv: sent 256.0KB of 256.0KB in 223ms (1.1MB/s)",
+      "segment: file#7 seg 1111/3364 ok 716800B in 240ms (streamed)",
+      "range: range request 206 Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv [795648680-795910823] (256.0KB) ← \"bytes=795648680-795910823\"",
+      "range: completed Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv: sent 256.0KB of 256.0KB in 2ms (125.0MB/s)",
+      "segment: file#7 seg 1115/3364 ok 716800B in 277ms (streamed)",
+      "range: Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv: unsatisfiable range bytes=2411056707-2411056807 (size 2411056607)",
+      "range: range request 206 Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv [0-16777215] (16.0MB) ← \"bytes=0-16777215\"",
+      "segment: file#7 seg 18/3364 ok 716800B in 51ms (streamed)",
+      "segment: file#7 seg 1120/3364 ok 716800B in 103ms (streamed)",
+      "segment: file#7 seg 1118/3364 ok 716800B in 160ms (streamed)",
+      "segment: file#7 seg 17/3364 ok 716800B in 159ms (streamed)",
+      "segment: file#7 seg 1117/3364 ok 716800B in 204ms (streamed)",
+      "segment: file#7 seg 19/3364 ok 716800B in 173ms (streamed)",
+      "segment: file#7 seg 1113/3364 ok 716800B in 610ms (streamed)",
+      "segment: file#7 seg 21/3364 ok 716800B in 192ms (streamed)",
+      "segment: file#7 seg 20/3364 ok 716800B in 226ms (streamed)",
+      "segment: file#7 seg 22/3364 ok 716800B in 240ms (streamed)",
+      "segment: file#7 seg 1119/3364 ok 716800B in 415ms (streamed)",
+      "segment: file#7 seg 24/3364 ok 716800B in 202ms (streamed)",
+      "segment: file#7 seg 23/3364 ok 716800B in 235ms (streamed)",
+      "range: completed Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv: sent 16.0MB of 16.0MB in 470ms (34.0MB/s)",
+      "segment: file#7 seg 1121/3364 ok 716800B in 510ms (streamed)",
+      "segment: file#7 seg 28/3364 ok 716800B in 131ms (streamed)",
+      "segment: file#7 seg 26/3364 ok 716800B in 182ms (streamed)",
+      "segment: file#7 seg 27/3364 ok 716800B in 211ms (streamed)",
+      "segment: file#7 seg 25/3364 ok 716800B in 240ms (streamed)",
+      "range: range request 206 Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv [2394279391-2411056606] (16.0MB) ← \"bytes=2394279391-2411056606\"",
+      "segment: file#7 seg 31/3364 ok 716800B in 205ms (streamed)",
+      "segment: file#7 seg 29/3364 ok 716800B in 262ms (streamed)",
+      "segment: file#7 seg 30/3364 ok 716800B in 266ms (streamed)",
+      "segment: file#7 seg 3341/3364 ok 716800B in 159ms (streamed)",
+      "segment: file#7 seg 3344/3364 ok 716800B in 188ms (streamed)",
+      "segment: file#7 seg 3346/3364 ok 716800B in 236ms (streamed)",
+      "segment: file#7 seg 3342/3364 ok 716800B in 272ms (streamed)",
+      "segment: file#7 seg 3348/3364 ok 716800B in 153ms (streamed)",
+      "segment: file#7 seg 3343/3364 ok 716800B in 332ms (streamed)",
+      "segment: file#7 seg 3349/3364 ok 716800B in 205ms (streamed)",
+      "segment: file#7 seg 3347/3364 ok 716800B in 235ms (streamed)",
+      "segment: file#7 seg 3345/3364 ok 716800B in 405ms (streamed)",
+      "segment: file#7 seg 3354/3364 ok 716800B in 113ms (streamed)",
+      "segment: file#7 seg 3351/3364 ok 716800B in 205ms (streamed)",
+      "segment: file#7 seg 3352/3364 ok 716800B in 233ms (streamed)",
+      "segment: file#7 seg 3350/3364 ok 716800B in 270ms (streamed)",
+      "segment: file#7 seg 3353/3364 ok 716800B in 265ms (streamed)",
+      "segment: file#7 seg 3357/3364 ok 716800B in 224ms (streamed)",
+      "segment: file#7 seg 3355/3364 ok 716800B in 261ms (streamed)",
+      "segment: file#7 seg 3356/3364 ok 716800B in 287ms (streamed)",
+      "segment: file#7 seg 3362/3364 ok 716800B in 124ms (streamed)",
+      "segment: file#7 seg 3360/3364 ok 716800B in 207ms (streamed)",
+      "segment: file#7 seg 3361/3364 ok 716800B in 235ms (streamed)",
+      "segment: file#7 seg 3359/3364 ok 716800B in 267ms (streamed)",
+      "segment: file#7 seg 3358/3364 ok 716800B in 300ms (streamed)",
+      "segment: file#7 seg 3364/3364 ok 458207B in 206ms (streamed)",
+      "segment: file#7 seg 3363/3364 ok 716800B in 239ms (streamed)",
+      "range: completed Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv: sent 16.0MB of 16.0MB in 908ms (17.6MB/s)"
+    ]
+  },
+  "analyzeEvents": [
+    "info: analyzing 8 file(s): fetching first segment of each to learn size, real name and type",
+    "info: probed 1 media file(s), 7 recovery volume(s) deferred — names look obfuscated (Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv)",
+    "info: PAR2 index parsed: 1 protected file(s), slice=10000000B, recovery blocks in this file=0",
+    "info: PAR2 index recovered from file#6 (6KB encoded) — 1 protected file(s)",
+    "info: 6 recovery volume(s) left un-probed (names did not need PAR2)",
+    "info: codecs for \"Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv\": container=matroska video=[V_MPEG4/ISO/AVC] audio=[A_EAC3] browserVideo=true browserAudio=false",
+    "warn: Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv: Playable video, unsupported audio: expect a silent picture in the browser.",
+    "warn: Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv: Matroska (MKV) playback support varies: Chrome/Edge demux it, Safari and Firefox generally do not.",
+    "warn: Silo (2023) S01E01 Freedom Day 1080p   WEBDL H264 Atmos @TSRG.mkv: Dolby Digital (AC3/E-AC3) audio: browsers cannot decode it — you will get video with no sound. Use VLC/mpv, or open the stream URL th",
+    "info: analysis done in 2047ms: 2 item(s), 1 playable"
+  ],
+  "subtitles": [],
+  "summary": {
+    "checks": 17,
+    "failed": 0,
+    "findings": 0
+  },
+  "finishedAt": "2026-09-06T01:22:45.555Z",
+  "durationMs": 18189
+}

@@ -1,0 +1,176 @@
+{
+  "app": "http://127.0.0.1:3000",
+  "startedAt": "2026-09-06T01:23:54.954Z",
+  "checks": [
+    {
+      "name": "video reaches playing state",
+      "pass": true,
+      "detail": "158ms"
+    },
+    {
+      "name": "first frame within 60s",
+      "pass": true,
+      "detail": "158ms"
+    },
+    {
+      "name": "video has dimensions",
+      "pass": true,
+      "detail": "854x480"
+    },
+    {
+      "name": "playback advances in real time",
+      "pass": true,
+      "detail": "+12.0s in 12003ms"
+    },
+    {
+      "name": "no repeated re-buffering",
+      "pass": true,
+      "detail": "0 waiting events"
+    },
+    {
+      "name": "audio track is being decoded",
+      "pass": true,
+      "detail": "144339B decoded — 0 means the browser cannot decode this audio codec (silent playback)"
+    },
+    {
+      "name": "seek forward to 40% recovers",
+      "pass": true,
+      "detail": "307ms"
+    },
+    {
+      "name": "seek back to an already-played position recovers",
+      "pass": true,
+      "detail": "304ms"
+    },
+    {
+      "name": "seek forward to 75% recovers",
+      "pass": true,
+      "detail": "302ms"
+    }
+  ],
+  "findings": [],
+  "error": null,
+  "codecs": {
+    "container": "mp4",
+    "video": [
+      "avc1"
+    ],
+    "audio": [
+      "mp4a"
+    ],
+    "subtitles": [],
+    "browserVideo": true,
+    "browserAudio": true,
+    "moovAtEnd": true,
+    "notes": []
+  },
+  "browser": "google-chrome (has H.264/AAC)",
+  "state": {
+    "readyState": 4,
+    "networkState": 1,
+    "currentTime": 0.063692,
+    "duration": 45,
+    "paused": false,
+    "videoWidth": 854,
+    "videoHeight": 480,
+    "error": null,
+    "decodedFrames": 7,
+    "droppedFrames": 0,
+    "audioDecodedBytes": 4681,
+    "videoDecodedBytes": 31195,
+    "buffered": {
+      "start": 0,
+      "end": 25.025
+    },
+    "src": "ttp://127.0.0.1:3000/api/sessions/6ee7db97-6946-4d1e-8dd1-310130d39009/stream/i0",
+    "events": [
+      {
+        "name": "loadeddata",
+        "t": 25,
+        "ct": 0
+      },
+      {
+        "name": "canplay",
+        "t": 25,
+        "ct": 0
+      },
+      {
+        "name": "playing",
+        "t": 26,
+        "ct": 0
+      },
+      {
+        "name": "canplaythrough",
+        "t": 26,
+        "ct": 0
+      }
+    ]
+  },
+  "timeToPlayingMs": 158,
+  "seeks": [
+    {
+      "label": "forward to 40%",
+      "target": 18,
+      "ok": true,
+      "ms": 307,
+      "currentTime": 18.181487,
+      "paused": false,
+      "error": null,
+      "readyState": 4,
+      "buffered": {
+        "end": 25.025
+      }
+    },
+    {
+      "label": "back to an already-played position",
+      "target": 2.25,
+      "ok": true,
+      "ms": 304,
+      "currentTime": 2.419822,
+      "paused": false,
+      "error": null,
+      "readyState": 4,
+      "buffered": {
+        "end": 25.025
+      }
+    },
+    {
+      "label": "forward to 75%",
+      "target": 33.75,
+      "ok": true,
+      "ms": 302,
+      "currentTime": 33.948865,
+      "paused": false,
+      "error": null,
+      "readyState": 4,
+      "buffered": {
+        "end": 45
+      }
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "failedRequests": [
+    "http://127.0.0.1:3000/api/sessions/6ee7db97-6946-4d1e-8dd1-310130d39009/stream/i0 net::ERR_ABORTED"
+  ],
+  "mediaResponses": [
+    {
+      "url": "/api/sessions/6ee7db97-6946-4d1e-8dd1-310130d39009/stream/i0",
+      "status": 206,
+      "headers": "video/mp4"
+    },
+    {
+      "url": "/api/sessions/6ee7db97-6946-4d1e-8dd1-310130d39009/stream/i0",
+      "status": 206,
+      "headers": "video/mp4"
+    },
+    {
+      "url": "/api/sessions/6ee7db97-6946-4d1e-8dd1-310130d39009/stream/i0",
+      "status": 206,
+      "headers": "video/mp4"
+    }
+  ],
+  "finishedAt": "2026-09-06T01:24:09.186Z"
+}

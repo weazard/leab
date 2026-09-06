@@ -1,0 +1,8 @@
+[media-mock] h264-aac-deflate.zip: 5627852B in 9 parts of 700000B
+[media-mock] h264-aac-faststart.mp4: 5656458B in 9 parts of 700000B
+[media-mock] h264-aac-moovtail.mp4: 14691204B in 21 parts of 700000B
+[media-mock] h264-aac-stored.zip: 5656600B in 9 parts of 700000B
+[media-mock] h264-aac.mp4: 5656458B in 9 parts of 700000B
+[media-mock] h264-ac3.mkv: 6165022B in 9 parts of 700000B
+[media-mock] NNTP on 127.0.0.1:1590
+[media-mock] NZBs on http://127.0.0.1:1591/h264-aac-deflate.zip.nzb h264-aac-faststart.mp4.nzb h264-aac-moovtail.mp4.nzb h264-aac-stored.zip.nzb h264-aac.mp4.nzb h264-ac3.mkv.nzb
