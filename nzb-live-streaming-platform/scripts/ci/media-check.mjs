@@ -58,7 +58,7 @@ try {
   if (!names.length) throw new Error(`no media files in ${DIR}`);
 
   for (const name of names) {
-    const file = fs.readFileSync(path.join(DIR, name));
+    let file = fs.readFileSync(path.join(DIR, name));
     log(`\n${name} (${file.length}B)`);
     const s = await j("/api/sessions", {
       method: "POST",
@@ -77,7 +77,16 @@ try {
       report.files.push(rec);
       continue;
     }
-    const item = st.items[0];
+    let item = st.items[0];
+    if (item && item.name !== name) {
+      // an archive: the posted file is a container, compare against the file
+      // inside it if that file also lives in the fixtures dir
+      const inner = path.join(DIR, path.basename(item.name));
+      if (fs.existsSync(inner)) {
+        file = fs.readFileSync(inner);
+        log(`  (archive → ${item.name}, ${file.length}B)`);
+      }
+    }
     rec.codecs = item.codecs ?? null;
     log(`  codecs: ${item.codecs?.container} video=[${item.codecs?.video}] audio=[${item.codecs?.audio}] browserAudio=${item.codecs?.browserAudio} moovAtEnd=${item.codecs?.moovAtEnd}`);
     check(`${name}: size matches source`, item.size === file.length, `${item.size} vs ${file.length}`);

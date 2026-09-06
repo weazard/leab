@@ -191,6 +191,8 @@ jobs:
           ffmpeg -hide_banner -nostdin -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 45 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 900k -c:a aac -b:a 96k h264-aac-faststart.mp4 >> /tmp/fixtures.log 2>&1
           ffmpeg -hide_banner -nostdin -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 45 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 900k -c:a ac3 -b:a 192k h264-ac3.mkv >> /tmp/fixtures.log 2>&1
           ffmpeg -hide_banner -nostdin -loglevel error -y -f lavfi -i testsrc2=size=854x480:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 90 -c:v libx264 -preset veryfast -pix_fmt yuv420p -b:v 1200k -c:a aac -b:a 96k h264-aac-moovtail.mp4 >> /tmp/fixtures.log 2>&1
+          # the same video inside archives — the other shape real releases come in
+          python3 -c "import zipfile,shutil; shutil.copy('h264-aac-faststart.mp4','h264-aac.mp4'); zipfile.ZipFile('h264-aac-stored.zip','w',zipfile.ZIP_STORED).write('h264-aac-faststart.mp4','h264-aac-faststart.mp4'); zipfile.ZipFile('h264-aac-deflate.zip','w',zipfile.ZIP_DEFLATED).write('h264-aac-faststart.mp4','h264-aac-faststart.mp4'); print('zips ok')" 2>&1 | tee -a /tmp/fixtures.log
           ls -la | tee -a /tmp/fixtures.log
 
       - name: start media mock (real files as usenet posts)
