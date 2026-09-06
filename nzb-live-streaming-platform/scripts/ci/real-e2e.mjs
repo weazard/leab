@@ -329,33 +329,55 @@ async function main() {
       return av - bv || (a.size ?? 0) - (b.size ?? 0);
     })[0];
     step("picked release", { title: picked.title, size: fmt(picked.size) });
+    // keep the runner-up picks: releases get taken down, and a probe that
+    // dies on the first DMCA'd result tells us nothing about the app
+    picked.more = [...items].filter((i) => i !== picked).slice(0, 5);
+    step("picked release", { title: picked.title, size: fmt(picked.size), runners: picked.more.length });
   }
 
-  /* 3. session */
-  const created = await j("/api/sessions", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
+  /* 3. session — try the pick, then the runners-up, until one is readable */
+  const isGuid = (g) => !!g && !/^https?:\/\//i.test(g);
+  const tries = [picked, ...(picked.more ?? [])];
+  let created = null;
+  let sess = null;
+  report.picks = [];
+  for (const cand of tries) {
+    const body = {
       providerId: prov.id,
       // prefer the guid: the server then builds the NZB url with its own key
-      // (a guid is an opaque id — anything that looks like a url is not one)
-      source: picked.guid && !/^https?:\/\//i.test(picked.guid) ? "indexer" : "url",
-      guid: picked.guid && !/^https?:\/\//i.test(picked.guid) ? picked.guid : undefined,
-      url: picked.nzbUrl ?? picked.link ?? picked.url,
-      title: picked.title,
-    }),
-  });
-  step("session created", { id: created.id, files: created.fileCount, total: fmt(created.totalBytes) });
+      source: isGuid(cand.guid) ? "indexer" : "url",
+      guid: isGuid(cand.guid) ? cand.guid : undefined,
+      url: cand.nzbUrl ?? cand.link ?? cand.url,
+      title: cand.title,
+    };
+    let c;
+    try {
+      c = await j("/api/sessions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    } catch (e) {
+      report.picks.push({ title: cand.title, size: cand.size, error: String(e.message).slice(0, 200) });
+      log(`  ! ${cand.title}: ${String(e.message).slice(0, 160)}`);
+      continue;
+    }
+    let st2 = c;
+    for (let i = 0; i < 120; i++) {
+      st2 = await j(`/api/sessions/${c.id}`);
+      if (st2.analyzed || st2.analyzeError) break;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    const vids = (st2.items ?? []).filter((i) => i.playable && i.kind === "video");
+    report.picks.push({ title: cand.title, size: cand.size, id: c.id, files: c.fileCount, analysed: !!st2.analyzed, error: st2.analyzeError?.slice(0, 200), videos: vids.length });
+    log(`  ${st2.analyzed ? "✓" : "✗"} ${cand.title} — ${c.fileCount} files, ${vids.length} playable video(s)${st2.analyzeError ? ` (${String(st2.analyzeError).slice(0, 120)})` : ""}`);
+    if (st2.analyzed && vids.length) {
+      created = c;
+      sess = st2;
+      picked = cand;
+      break;
+    }
+  }
+  if (!created) throw new Error(`no readable release among ${tries.length} candidates (they are probably taken down)`);
+  step("session created", { id: created.id, files: created.fileCount, total: fmt(created.totalBytes), release: picked.title });
   const sid = created.id;
   report.sessionId = sid;
-
-  let sess = null;
-  for (let i = 0; i < 120; i++) {
-    sess = await j(`/api/sessions/${sid}`);
-    if (sess.analyzed || sess.analyzeError) break;
-    await new Promise((r) => setTimeout(r, 1500));
-  }
-  if (sess.analyzeError) throw new Error(`analysis failed: ${sess.analyzeError}`);
   step("analysis done", { items: (sess.items ?? []).length, ms: Date.now() - Date.parse(report.startedAt) });
   report.items = (sess.items ?? []).map((i) => ({
     name: i.name,

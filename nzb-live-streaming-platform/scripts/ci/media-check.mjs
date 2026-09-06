@@ -88,7 +88,8 @@ try {
       }
     }
     rec.codecs = item.codecs ?? null;
-    log(`  codecs: ${item.codecs?.container} video=[${item.codecs?.video}] audio=[${item.codecs?.audio}] browserAudio=${item.codecs?.browserAudio} moovAtEnd=${item.codecs?.moovAtEnd}`);
+    if (item.codecs) log(`  codecs: ${item.codecs.container} video=[${item.codecs.video}] audio=[${item.codecs.audio}] browserAudio=${item.codecs.browserAudio} moovAtEnd=${item.codecs.moovAtEnd}`);
+    else log("  codecs: not probed (needs decompression — the browser decodes it after inflate)");
     check(`${name}: size matches source`, item.size === file.length, `${item.size} vs ${file.length}`);
 
     const u = `${APP}/api/sessions/${st.id}/stream/${item.id}`;
@@ -128,15 +129,14 @@ try {
     report.files.push(rec);
   }
 
-  // a file whose audio the browser cannot decode must be flagged
-  const ac3 = report.files.find((f) => f.name.includes("ac3"));
-  if (ac3) {
-    check("h264-ac3.mkv is reported as silent in the browser", ac3.codecs?.browserAudio === false, `audio=[${ac3.codecs?.audio}]`);
-  }
-  const aac = report.files.find((f) => f.name.includes("aac"));
-  if (aac) {
-    check("h264-aac file is reported as playable with sound", aac.codecs?.browserAudio === true, `audio=[${aac.codecs?.audio}]`);
-  }
+  // A file whose audio the browser cannot decode must be flagged as such, and
+  // one it can decode must not be. (Only probed files have codecs: an entry
+  // that needs inflating is decoded by the browser after the blob is built.)
+  const probed = report.files.filter((f) => f.codecs);
+  const silent = probed.find((f) => (f.codecs.audio ?? []).some((a) => /A_AC3|A_EAC3|ac-3|ec-3|A_DTS|A_TRUEHD/i.test(a)));
+  if (silent) check(`${silent.name}: browser-incompatible audio is flagged`, silent.codecs.browserAudio === false, `audio=[${silent.codecs.audio}]`);
+  const audible = probed.find((f) => (f.codecs.audio ?? []).some((a) => /AAC|mp4a|Opus|A_FLAC/i.test(a)));
+  if (audible) check(`${audible.name}: browser-playable audio is not flagged`, audible.codecs.browserAudio === true, `audio=[${audible.codecs.audio}]`);
 } catch (e) {
   report.error = e.message;
   log(`media check failed: ${e.message}`);
